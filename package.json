@@ -1,0 +1,80 @@
+{
+  "name": "evmdecoder",
+  "description": "Library to decode EVM contract data.",
+  "version": "0.0.1",
+  "contributors": [
+    "Splunk",
+    "Jayson Jacobs"
+  ],
+  "repository": "j4ys0n/evmdecoder",
+  "bugs": "https://github.com/j4ys0n/evmdecoder/issues",
+  "homepage": "https://github.com/j4ys0n/evmdecoder",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@splunkdlt/async-tasks": "^1.1.0",
+    "@splunkdlt/cache": "^1.0.3",
+    "@splunkdlt/debug-logging": "^1.0.2",
+    "@splunkdlt/managed-resource": "^1.1.0",
+    "agentkeepalive": "^4.2.1",
+    "bl": "^5.0.0",
+    "debug": "^4.3.3",
+    "fs-extra": "^8.1.0",
+    "node-fetch": "^2.6.0",
+    "tslib": "^1",
+    "web3": "1.5.3"
+  },
+  "devDependencies": {
+    "@types/bl": "^5.0.2",
+    "@types/debug": "^4.1.7",
+    "@types/fs-extra": "^8.0.1",
+    "@types/jest": "^27.4.1",
+    "@types/node": "^14.17.18",
+    "@types/node-fetch": "2.6",
+    "@typescript-eslint/eslint-plugin": "^2.10.0",
+    "@typescript-eslint/parser": "^2.10.0",
+    "eslint": "^6.7.2",
+    "eslint-config-prettier": "^6.7.0",
+    "eslint-plugin-prettier": "^3.1.1",
+    "execa": "^4.0.0",
+    "jest": "^27.5.1",
+    "prettier": "^1.19.1",
+    "ts-jest": "^27.1.3",
+    "ts-node": "^8.5.4",
+    "typescript": "^3.7.3",
+    "typescript-json-schema": "^0.41.0"
+  },
+  "engines": {
+    "node": ">=12.0.0"
+  },
+  "files": [
+    "/bin",
+    "/lib",
+    "/data/*.abisigs.gz",
+    "/data/chains.json"
+  ],
+  "keywords": [
+    "splunk",
+    "ethereum",
+    "quorum",
+    "connector",
+    "decode",
+    "evm",
+    "eth",
+    "web3",
+    "bytecode"
+  ],
+  "license": "Apache-2.0",
+  "main": "lib/index.js",
+  "scripts": {
+    "lint": "eslint . --ext .ts --config .eslintrc",
+    "build": "yarn build:wasm && rm -rf lib && tsc -b && yarn build:signatures",
+    "build:wasm": "wasm-pack build --target nodejs --release wasm/ethabi",
+    "build:signatures": "ts-node scripts/buildsigs.ts",
+    "prepack": "yarn build",
+    "format": "git ls-files | grep -E \"\\.(jsx?|tsx?|css|md|ya?ml|json)$\" | xargs prettier --write",
+    "test": "jest --config jest.config.json"
+  },
+  "types": "lib/index.d.ts"
+}
