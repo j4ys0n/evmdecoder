@@ -6,6 +6,8 @@ EvmDecoder can determine if an address is a contract and (for supported types) r
 
 ## How to use
 
+`yarn add evmdecoder` or `npm install evmdecoder` to install.
+
 ### Decode function call
 
 ```typescript

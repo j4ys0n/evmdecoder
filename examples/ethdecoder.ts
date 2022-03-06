@@ -1,6 +1,6 @@
 import { EvmDecoder } from '../src' //evmdecoder
 ;(async () => {
-  const evmDecoder = new EvmDecoder({ eth: { url: 'http://localhost:8545' } })
+  const evmDecoder = new EvmDecoder({ eth: { url: 'http://eth-mainnet:8545' } })
   await evmDecoder.initialize()
 
   // ethereum tx hash: 0xd698c9191a88c253a926ef1d7eecf22bea9370a0d8dc7fb9e819bad0ae0f1d9e
@@ -18,6 +18,10 @@ import { EvmDecoder } from '../src' //evmdecoder
   const nftAddress = '0x78d61C684A992b0289Bbfe58Aaa2659F667907f8'
   const nftInfo = await evmDecoder.contractInfo({ address: nftAddress })
   console.log(JSON.stringify(nftInfo))
+
+  const nftSend = '0x23b872dd000000000000000000000000e809e745ebd8e37d2ed783b48d328b2b77b7dd2c0000000000000000000000006a60114b678b04be3fa094eb5abdc2d4ecd80769000000000000000000000000000000000000000000000000000000000000005c'
+  const nftFunctionCall = await evmDecoder.decodeFunctionCall({ input: nftSend, address: nftAddress})
+  console.log(JSON.stringify(nftFunctionCall))
 })()
 
 /**

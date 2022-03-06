@@ -24,6 +24,7 @@ export interface ContractType {
   proxies?: ContractProxy[]
   metadata?: boolean
   baseUri?: boolean
+  tokenUri?: boolean
   enumeration?: boolean
   receive?: string[]
 }
