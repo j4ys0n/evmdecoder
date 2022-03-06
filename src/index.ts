@@ -68,10 +68,15 @@ export class EvmDecoder {
 
   public async decodeFunctionCall({ input, address }: { input: string; address?: string }) {
     const contractInfo = address != null ? await this.contractInfo({ address }) : undefined
-    return this.abiRepo.decodeFunctionCall(input, {
+    const decoded = this.abiRepo.decodeFunctionCall(input, {
       contractAddress: address,
       contractFingerprint: contractInfo != null ? contractInfo.fingerprint : undefined
     })
+    if (address != null && decoded != null && contractInfo != null) {
+      console.log('trying to get extra data')
+      return this.classification.getExtraData(address, decoded, contractInfo, input)
+    }
+    return decoded
   }
 
   public async contractInfo({ address }: { address: string }) {

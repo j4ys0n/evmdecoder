@@ -1,7 +1,40 @@
 import { createModuleDebug } from '@splunkdlt/debug-logging'
-import { ContractType, TokenProperties, MultiSigProperties, ContractProxy, ERC3668Properties } from '../abi/contract'
+import {
+  ContractType,
+  TokenProperties,
+  MultiSigProperties,
+  ContractProxy,
+  ERC3668Properties,
+  ContractInfo
+} from '../abi/contract'
 import { getStorageAt, getCode, call, encodeParameter } from '../eth/requests'
 import { EthereumClient } from '../eth/client'
+
+export type Value = string | number | boolean | Array<string | number | boolean>
+
+export type DecodedStruct = { [k: string]: Value | DecodedStruct } | DecodedStruct[]
+
+export interface FunctionCall {
+  /** Function name */
+  name: string
+  /** Function signature (name and parameter types) */
+  signature: string
+  /** List of decoded parameters */
+  params: Array<{
+    /** Paramter name - omitted if the function call was decoded anonymously */
+    name?: string
+    /** Data type */
+    type: string
+    /** Decoded value */
+    value: Value | DecodedStruct
+  }>
+  /**
+   * A map of parameter names and their decoded value.
+   * Omitted if the function call was decoded anonymously
+   */
+  args?: { [name: string]: Value | DecodedStruct }
+  extra?: { [name: string]: Value }
+}
 
 const { info, warn, error, debug } = createModuleDebug('abi:classification')
 
@@ -81,6 +114,8 @@ const totalSupplySignature = '18160ddd'
 const tokenByIndexSignature = '4f6ccce7'
 // ABI signature of tokenURI(uint256) function
 const tokenURISignature = 'c87b56dd'
+// ABI signature of transferFrom(address,address,uint256) function
+const transferFromSignature = '23b872dd'
 // ABI signature of balanceOf(address) function
 const balanceOfSignature = '70a08231'
 // ABI signature of flashLoan(address,address,uint256,bytes) function
@@ -339,11 +374,13 @@ export class Classification {
       const metadata = this.hasErc721MetadataExtension(code)
       const baseUri = this.hasErc721BaseUriSupport(code)
       const enumeration = this.hasErc721EnumerationExtension(code)
+      const tokenUri = this.hasErc721TokenUriSupport(code)
       contractType.name = 'NFT'
       standards.push('ERC721')
       contractType.metadata = metadata
       contractType.baseUri = baseUri
       contractType.enumeration = enumeration
+      contractType.tokenUri = tokenUri
     }
     if (this.isErc1155ContractCode(code)) {
       const metadata = this.hasErc1155MetadataExtension(code)
@@ -396,71 +433,91 @@ export class Classification {
     return contractType
   }
 
-  private createEncodedIndexes(totalSupply: number): string[] {
-    const indexes: string[] = []
-    for (let i = 0; i < totalSupply; i++) {
-      indexes.push(encodeParameter(i, 'uint256'))
-    }
-    return indexes
-  }
-
-  public async getNFTIdsBatch(address: string, totalSupply: number, getUris: boolean): Promise<string[] | undefined> {
-    const encodedIndexes = this.createEncodedIndexes(totalSupply)
-    const callData = (index: string) => `${tokenByIndexSignature}${index.substring(2)}`
-    const ids = await this.ethClient
-      .requestBatch(encodedIndexes.map(index => call(address, callData(index), 'uint256')))
-      .catch(e => {
-        warn("Couldn't get NFT ids. (%s)", (e as any).message)
-        return undefined
-      })
-    if (getUris && ids) {
-      return await this.getNFTUrisBatch(address, ids)
-    }
-    return ids
-  }
-
-  public async getNFTUrisBatch(address: string, ids: string[]): Promise<string[] | undefined> {
-    const callData = (id: string) => `${tokenURISignature}${id.substring(2)}`
-    const uris = await this.ethClient.requestBatch(ids.map(id => call(address, callData(id), 'string'))).catch(e => {
-      warn("Couldn't get NFT URIs. (%s)", (e as any).message)
+  public async getNFTId(address: string, index: number): Promise<string | undefined> {
+    const encodedIndex = encodeParameter(index, 'uint256')
+    const callData = this.getErc721IdByIndex(encodedIndex)
+    return await this.ethClient.request(call(address, callData, 'uint256')).catch(e => {
+      warn("Couldn't get NFT id %s. (%s)", encodedIndex, (e as any).message)
       return undefined
     })
-    return uris
   }
 
-  public async getNFTIds(address: string, totalSupply: number, getUris: boolean): Promise<string[] | undefined> {
-    const encodedIndexes = this.createEncodedIndexes(totalSupply)
-    const callData = (index: string) => `${tokenByIndexSignature}${index.substring(2)}`
-    const responses: string[] = []
-    for (let i = 0; i < encodedIndexes.length; i++) {
-      const response = await this.ethClient.request(call(address, callData(encodedIndexes[i]), 'uint256')).catch(e => {
-        warn("Couldn't get NFT id %s. (%s)", encodedIndexes[i], (e as any).message)
-        return undefined
-      })
-      if (response) {
-        responses.push(response)
-      }
-    }
-
-    if (getUris && responses.length > 0) {
-      return await this.getNFTUris(address, responses)
-    }
-    return responses
+  public async getNFTUri(address: string, id: string): Promise<string | undefined> {
+    const callData = this.getErc721UriById(id)
+    return await this.ethClient.request(call(address, callData, 'string')).catch(e => {
+      warn("Couldn't get NFT URI of %s from %s. (%s)", id, address, (e as any).message)
+      return undefined
+    })
   }
 
-  public async getNFTUris(address: string, ids: string[]): Promise<string[] | undefined> {
-    const callData = (id: string) => `${tokenURISignature}${id.substring(2)}`
-    const responses: string[] = []
-    for (let i = 0; i < ids.length; i++) {
-      const response = await this.ethClient.request(call(address, callData(ids[i]), 'uint256')).catch(e => {
-        warn("Couldn't get NFT URI %s. (%s)", ids[i], (e as any).message)
-        return undefined
-      })
-      if (response) {
-        responses.push(response)
+  public async determineNFTUri(
+    address: string,
+    callInfo: FunctionCall,
+    toInfo: ContractInfo
+  ): Promise<string | undefined> {
+    if (toInfo.contractType) {
+      if (toInfo.contractType.baseUri && toInfo.properties) {
+        const baseUri = (toInfo.properties as TokenProperties).baseUri
+        if (baseUri) {
+          let nftUri
+          try {
+            nftUri = await this.getNFTUri(address, encodeParameter(<number>callInfo.params[2].value, 'uint256'))
+          } catch (e) {
+            warn("Couldn't get NFT URI. (%s %s)", address, (e as any).message)
+          }
+          if (nftUri) {
+            return nftUri
+          }
+          const slash = baseUri.lastIndexOf('/') === baseUri.length - 1 ? '' : '/'
+          return `${baseUri}${slash}${callInfo.params[2].value}`
+        }
+      }
+      let tokenId
+      try {
+        tokenId = toInfo.contractType.enumeration
+          ? await this.getNFTId(address, <number>callInfo.params[2].value)
+          : encodeParameter(<number>callInfo.params[2].value, 'uint256')
+      } catch (e) {
+        warn("Couldn't get NFT ID on first pass. (%s)", (e as any).message)
+      }
+      if (!tokenId) {
+        tokenId = encodeParameter(<number>callInfo.params[2].value, 'uint256')
+      } else if (!tokenId.startsWith('0x') || tokenId.length < 66) {
+        tokenId = encodeParameter(tokenId, 'uint256')
+      }
+      if (toInfo.contractType.tokenUri) {
+        let nftUri
+        try {
+          nftUri = await this.getNFTUri(address, tokenId)
+        } catch (e) {
+          warn("Couldn't get NFT URI. (%s %s)", address, (e as any).message)
+        }
+        if (nftUri) {
+          return nftUri
+        }
       }
     }
-    return responses
+    return undefined
+  }
+
+  public async getExtraData(
+    address: string,
+    callInfo: FunctionCall,
+    toInfo: ContractInfo,
+    input: string
+  ): Promise<FunctionCall> {
+    let extra: { [name: string]: Value } = {}
+    // try to get ERC721 tokenURI on transfer
+    if (input.startsWith(`0x${transferFromSignature}`)) {
+      const tokenUri = await this.determineNFTUri(address, callInfo, toInfo)
+      if (tokenUri != null) {
+        extra = { ...extra, tokenUri }
+      }
+    }
+    if (Object.keys(extra).length > 0) {
+      return { ...callInfo, extra }
+    }
+    return callInfo
   }
 
   public async getContractProperties(
@@ -488,10 +545,7 @@ export class Classification {
         const totalSupply = contractType.enumeration
           ? await this.ethClient.request(call(address, totalSupplySignature, 'uint256'))
           : undefined
-        // this is just far from efficient. should probably just watch for txes and grab the nft ids/urls
-        // const items = (baseUri && totalSupply)
-        //   ? await this.getNFTIds(address, totalSupply, false)
-        //   : (totalSupply) ? await this.getNFTIds(address, totalSupply, true) : undefined
+
         return { name, symbol, baseUri, totalSupply }
       }
       if (contractType.standards.includes('ERC3668')) {
@@ -543,6 +597,9 @@ export class Classification {
   private hasErc721MetadataExtension = (code: string): boolean => code.includes(erc721MetadataInterfaceId)
   private hasErc721EnumerationExtension = (code: string): boolean => code.includes(erc721EnumerationInterfaceId)
   private hasErc721BaseUriSupport = (code: string): boolean => code.includes(baseUriSignature)
+  private hasErc721TokenUriSupport = (code: string): boolean => code.includes(tokenURISignature)
+  private getErc721IdByIndex = (index: string) => `${tokenByIndexSignature}${index.substring(2)}`
+  private getErc721UriById = (id: string) => `${tokenURISignature}${id.substring(2)}`
   private isErc1155 = (code: string): boolean => code.includes(erc1155InterfaceId)
   private isErc1155Receiver = (code: string): boolean => code.includes(erc1155ReceivingInterfaceId)
   private hasErc1155MetadataExtension = (code: string): boolean => code.includes(erc1155MetadataInterfaceId)
