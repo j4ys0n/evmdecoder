@@ -1,6 +1,6 @@
 import { EvmDecoder } from '../src' //evmdecoder
 ;(async () => {
-  const evmDecoder = new EvmDecoder({ eth: { url: 'http://eth-mainnet:8545' } })
+  const evmDecoder = new EvmDecoder({ eth: { url: 'http://localhost:8545' } })
   await evmDecoder.initialize()
 
   // ethereum tx hash: 0xd698c9191a88c253a926ef1d7eecf22bea9370a0d8dc7fb9e819bad0ae0f1d9e
