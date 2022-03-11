@@ -79,7 +79,7 @@ export interface EthereumClientConfigSchema {
   maxBatchTime: Duration
   /** Request individual transaction receipts from RPC? Set to `false` for Alchemy */
   individualReceipts: boolean,
-  //** Maximum time to wait before submitting a batch of JSON RPC requests, exponential backoff */
+  //** Maximum time to wait before resubmitting a batch of JSON RPC requests, exponential backoff */
   maxRetryTime: number
 }
 
