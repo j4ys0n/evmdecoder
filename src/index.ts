@@ -74,7 +74,7 @@ export class EvmDecoder {
   constructor(config: DeepPartial<Config>) {
     this.config = deepMerge(config, DEFAULT_CONFIG) as Config
     this.abortHandle = new AbortHandle()
-    this.waitAfterFailure = exponentialBackoff({ min: 0, max: 10_000 })
+    this.waitAfterFailure = exponentialBackoff({ min: 0, max: this.config.eth.client.maxRetryTime })
     this.abiRepo = new AbiRepository(this.config.abi)
     this.addResource(this.abiRepo)
 
