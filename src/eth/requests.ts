@@ -62,6 +62,11 @@ export const getBlock = (
   params: [typeof blockNumber === 'number' ? numberToHex(blockNumber) : blockNumber, true]
 })
 
+export const getTransaction = (txHash: string): EthRequest<[string], RawTransactionResponse> => ({
+  method: 'eth_getTransactionByHash',
+  params: [txHash]
+})
+
 export const getTransactionReceipt = (txHash: string): EthRequest<[string], RawTransactionReceipt> => ({
   method: 'eth_getTransactionReceipt',
   params: [txHash]

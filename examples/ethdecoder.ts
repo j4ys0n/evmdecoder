@@ -3,26 +3,40 @@ import { EvmDecoder } from '../src' //evmdecoder
   const evmDecoder = new EvmDecoder({ eth: { url: 'http://localhost:8545' } })
   await evmDecoder.initialize()
 
+  console.log('--> decoded function call <--')
   // ethereum tx hash: 0xd698c9191a88c253a926ef1d7eecf22bea9370a0d8dc7fb9e819bad0ae0f1d9e
   const input =
     '0xe63d38ed000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000200000000000000000000000083d50977190c592bb9f03054500b1fd81b53dd49000000000000000000000000dc7cd9b725726f5dcd646d3a2c768e4636a89578000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000002c68af0bb14000000000000000000000000000000000000000000000000000002c68af0bb140000'
   const functionCall = await evmDecoder.decodeFunctionCall({ input })
   console.log(JSON.stringify(functionCall))
 
+  console.log('--> contract info ERC20 <--')
   // USDC
   const usdcAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
   const usdcInfo = await evmDecoder.contractInfo({ address: usdcAddress })
   console.log(JSON.stringify(usdcInfo))
 
+  console.log('--> contract info ERC721 <--')
   // SUPERGUCCI
   const nftAddress = '0x78d61C684A992b0289Bbfe58Aaa2659F667907f8'
   const nftInfo = await evmDecoder.contractInfo({ address: nftAddress })
   console.log(JSON.stringify(nftInfo))
 
+  console.log('--> decoded function call, NFT <--')
   const nftSend =
     '0x23b872dd000000000000000000000000e809e745ebd8e37d2ed783b48d328b2b77b7dd2c0000000000000000000000006a60114b678b04be3fa094eb5abdc2d4ecd80769000000000000000000000000000000000000000000000000000000000000005c'
   const nftFunctionCall = await evmDecoder.decodeFunctionCall({ input: nftSend, address: nftAddress })
   console.log(JSON.stringify(nftFunctionCall))
+
+  console.log('--> decoded transaction <--')
+  const usdcTxHash = '0x1523032cba61b24e77077f550cd6bea8f4fcda80e78cb3d3888207dcac60be90'
+  const decodedTx = await evmDecoder.getTransaction(usdcTxHash)
+  console.log(JSON.stringify(decodedTx))
+
+  console.log('--> decoded block <--')
+  const blockNumber = 14354151
+  const decodedBlock = await evmDecoder.getBlock(blockNumber)
+  console.log(JSON.stringify(decodedBlock))
 })()
 
 /**
