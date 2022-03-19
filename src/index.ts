@@ -9,7 +9,13 @@ import { Config, DeepPartial } from './config'
 import { BatchedEthereumClient, EthereumClient } from './eth/client'
 import { HttpTransport } from './eth/http'
 import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt } from './eth/requests'
-import { RawBlockResponse, RawLogResponse, RawParityLogResponse, RawParityTransactionReceipt, RawTransactionResponse } from './eth/responses'
+import {
+  RawBlockResponse,
+  RawLogResponse,
+  RawParityLogResponse,
+  RawParityTransactionReceipt,
+  RawTransactionResponse
+} from './eth/responses'
 import { FormattedBlock, FormattedLogEvent, FormattedTransaction } from './msgs'
 import { bigIntToNumber } from './utils/bn'
 import { Classification } from './utils/classification'
@@ -58,7 +64,7 @@ interface FormattedTransactionResponse {
   logEvents: FormattedLogEvent[]
 }
 
-const addressInfo = (contractInfo?: ContractInfo): ContractInfo | undefined => contractInfo ?? undefined;
+const addressInfo = (contractInfo?: ContractInfo): ContractInfo | undefined => contractInfo ?? undefined
 
 export class EvmDecoder {
   private config: Config
@@ -103,8 +109,11 @@ export class EvmDecoder {
       contractFingerprint: contractInfo != null ? contractInfo.fingerprint : undefined
     })
     if (address != null && decoded != null && contractInfo != null) {
-      console.log('trying to get extra data')
-      return this.classification.getExtraData(address, decoded, contractInfo, input)
+      try {
+        return this.classification.getExtraData(address, decoded, contractInfo, input)
+      } catch (e) {
+        warn('could not get extra data for transaction')
+      }
     }
     return decoded
   }
@@ -128,7 +137,7 @@ export class EvmDecoder {
     const blocks = await this.ethClient
       .requestBatch(blockNumbers.map(blockNumber => getBlock(blockNumber)))
       .catch(e => Promise.reject(new Error(`Failed to request batch of blocks ${blockNumbers.join(', ')}: ${e}`)))
-    
+
     return await Promise.all(blocks.map(b => this.processBlock(b)))
   }
 
@@ -141,9 +150,7 @@ export class EvmDecoder {
     const receipt = await this.ethClient.request(getTransactionReceipt(hash))
     if (receipt) {
       return await Promise.all(
-        receipt?.logs?.map(
-          (l: RawLogResponse | RawParityLogResponse) => this.processTransactionLog(l)
-        ) ?? []
+        receipt?.logs?.map((l: RawLogResponse | RawParityLogResponse) => this.processTransactionLog(l)) ?? []
       )
     }
     return []
@@ -155,19 +162,15 @@ export class EvmDecoder {
     let individualReceipts = this.config.eth.client.individualReceipts
     if (!individualReceipts) {
       try {
-        receipts = await retry(
-          () => this.ethClient.request(getBlockReceipts(block.number!)),
-          {
-            attempts: 3,
-            waitBetween: this.waitAfterFailure,
-            taskName: `getting receipts for block ${bigIntToNumber(block.number!)}`,
-            abortHandle: this.abortHandle,
-            warnOnError: true,
-            onRetry: (attempt: number) => warn('Retrying to get receipts for block %s (attempt %d)',
-              bigIntToNumber(block.number!),
-              attempt)
-          }
-        )
+        receipts = await retry(() => this.ethClient.request(getBlockReceipts(block.number!)), {
+          attempts: 3,
+          waitBetween: this.waitAfterFailure,
+          taskName: `getting receipts for block ${bigIntToNumber(block.number!)}`,
+          abortHandle: this.abortHandle,
+          warnOnError: true,
+          onRetry: (attempt: number) =>
+            warn('Retrying to get receipts for block %s (attempt %d)', bigIntToNumber(block.number!), attempt)
+        })
       } catch (e) {
         warn(
           'unable to get receipts for full block %d, switching to individualReceipts mode',
@@ -179,11 +182,15 @@ export class EvmDecoder {
 
     const transactions = await this.abortHandle.race(
       Promise.all(
-        rawBlock.transactions.map(tx => this.processTransaction(
-          tx, individualReceipts, !individualReceipts
-            ? receipts.filter(r => r.transactionHash === (tx as RawTransactionResponse).hash)[0]
-            : undefined
-        ))
+        rawBlock.transactions.map(tx =>
+          this.processTransaction(
+            tx,
+            individualReceipts,
+            !individualReceipts
+              ? receipts.filter(r => r.transactionHash === (tx as RawTransactionResponse).hash)[0]
+              : undefined
+          )
+        )
       )
     )
     return {
@@ -198,41 +205,48 @@ export class EvmDecoder {
     rawReceipt: RawParityTransactionReceipt | undefined = undefined
   ): Promise<FormattedTransactionResponse> {
     if (typeof rawTx === 'string') {
-      warn('Received raw transaction %s from block %d', )
+      warn('Received raw transaction %s from block %d')
       throw new RuntimeError(`Received raw transaction`)
     }
 
     const [receipt, toInfo, fromInfo] = await Promise.all([
       individualReceipts ? this.ethClient.request(getTransactionReceipt(rawTx.hash)) : rawReceipt,
-      rawTx.to != null ? contractInfo({
-        address: rawTx.to,
-        ethBatchClient: this.ethClient,
-        abiRepo: this.abiRepo,
-        contractInfoCache: this.contractInfoCache,
-        classification: this.classification
-      }) : undefined,
-      rawTx.from != null ? contractInfo({
-        address: rawTx.from,
-        ethBatchClient: this.ethClient,
-        abiRepo: this.abiRepo,
-        contractInfoCache: this.contractInfoCache,
-        classification: this.classification
-      }) : undefined
+      rawTx.to != null
+        ? contractInfo({
+            address: rawTx.to,
+            ethBatchClient: this.ethClient,
+            abiRepo: this.abiRepo,
+            contractInfoCache: this.contractInfoCache,
+            classification: this.classification
+          })
+        : undefined,
+      rawTx.from != null
+        ? contractInfo({
+            address: rawTx.from,
+            ethBatchClient: this.ethClient,
+            abiRepo: this.abiRepo,
+            contractInfoCache: this.contractInfoCache,
+            classification: this.classification
+          })
+        : undefined
     ])
 
-    const contractAddressInfo: ContractInfo | undefined = (receipt?.contractAddress != null)
-      ? await contractInfo({
-        address: receipt.contractAddress,
-        ethBatchClient: this.ethClient,
-        abiRepo: this.abiRepo,
-        contractInfoCache: this.contractInfoCache,
-        classification: this.classification
-      }) : undefined
-    
-    const callInfo = (toInfo && toInfo.isContract)
-      ? await this.decodeFunctionCall({input: rawTx.input, address: rawTx.to!})
-      : undefined
-    
+    const contractAddressInfo: ContractInfo | undefined =
+      receipt?.contractAddress != null
+        ? await contractInfo({
+            address: receipt.contractAddress,
+            ethBatchClient: this.ethClient,
+            abiRepo: this.abiRepo,
+            contractInfoCache: this.contractInfoCache,
+            classification: this.classification
+          })
+        : undefined
+
+    const callInfo =
+      toInfo && toInfo.isContract
+        ? await this.decodeFunctionCall({ input: rawTx.input, address: rawTx.to! })
+        : undefined
+
     const transaction = formatTransaction(
       rawTx,
       receipt!,
@@ -242,12 +256,12 @@ export class EvmDecoder {
       callInfo
     )
 
-    const logEvents = (toInfo && toInfo.isContract)
-      ? await Promise.all(
-        receipt?.logs?.map(
-          (l: RawLogResponse | RawParityLogResponse) => this.processTransactionLog(l)
-        ) ?? []
-      ) : []
+    const logEvents =
+      toInfo && toInfo.isContract
+        ? await Promise.all(
+            receipt?.logs?.map((l: RawLogResponse | RawParityLogResponse) => this.processTransactionLog(l)) ?? []
+          )
+        : []
 
     return {
       transaction,
@@ -255,9 +269,7 @@ export class EvmDecoder {
     }
   }
 
-  private async processTransactionLog(
-    evt: RawLogResponse | RawParityLogResponse
-  ): Promise<FormattedLogEvent> {
+  private async processTransactionLog(evt: RawLogResponse | RawParityLogResponse): Promise<FormattedLogEvent> {
     const eventContractInfo = await contractInfo({
       address: evt.address,
       ethBatchClient: this.ethClient,

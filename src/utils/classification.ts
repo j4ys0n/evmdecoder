@@ -508,7 +508,7 @@ export class Classification {
   ): Promise<FunctionCall> {
     let extra: { [name: string]: Value } = {}
     // try to get ERC721 tokenURI on transfer
-    if (input.startsWith(`0x${transferFromSignature}`)) {
+    if (input.startsWith(`0x${transferFromSignature}`) && toInfo.contractType?.standards?.includes('ERC721')) {
       const tokenUri = await this.determineNFTUri(address, callInfo, toInfo)
       if (tokenUri != null) {
         extra = { ...extra, tokenUri }
