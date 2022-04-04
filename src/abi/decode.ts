@@ -22,13 +22,6 @@ export interface DecodedFunctionCall {
   args?: { [name: string]: Value | DecodedStruct }
 }
 
-export interface DecodedLogEvent {
-  name: string
-  signature: string
-  params: DecodedParameter[]
-  args?: { [name: string]: Value | DecodedStruct }
-}
-
 export function getInputSize(abi: AbiItemDefinition): DataSize {
   try {
     return abi.inputs
@@ -192,7 +185,7 @@ export function decodeLogEvent(
   signature: string,
   anonymous: boolean,
   shouldReconcileStructs: boolean = false
-): DecodedLogEvent {
+): DecodedFunctionCall {
   const nonIndexedInputs = abi.inputs.filter(i => !i.indexed)
   const nonIndexedTypes = nonIndexedInputs.map(encodeInputType)
   let decodedData: Array<Value | DecodedStruct> = abiDecodeParameters(data.slice(2), nonIndexedTypes)

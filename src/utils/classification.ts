@@ -38,6 +38,8 @@ export interface FunctionCall {
 
 const { info, warn, error, debug } = createModuleDebug('abi:classification')
 
+// ABI signature of supportsInterface() function, ERC165
+const supportsInterfaceSignature = '01ffc9a7'
 // interfaceId passed to 'supportsInterface' for erc721
 const erc721InterfaceId = '80ac58cd'
 // interfaceId passed to 'supportsInterface' for erc721 receiving contract
@@ -86,8 +88,6 @@ const diamondCutSignature = '1f931c1c'
 const diamondFacetAddressSignature = 'cdffacc6'
 // ABI signature of diamondFacets() function used by Diamond Prioxies (EIP 2535)
 const diamondFacetsSignature = '7a0ed627'
-// ABI signature of supportsInterface() function used by Diamond Prioxies (EIP 2535)
-const supportsInterfaceSignature = '01ffc9a7'
 // event emitted by erc20 contracts - derived from keccak256('Transfer(address,address,uint256)')
 const transferEvent = 'ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
 // ABI signature of implementation() function - 897, 1967
@@ -114,8 +114,28 @@ const totalSupplySignature = '18160ddd'
 const tokenByIndexSignature = '4f6ccce7'
 // ABI signature of tokenURI(uint256) function
 const tokenURISignature = 'c87b56dd'
+// ABI signature of Transfer(address,address,uint256)
+const transferErc721Signature = 'ddf252ad'
+// ABI signature of Approval(address,address,uint256)
+const approvalErc721Signature = '8c5be1e5'
+// ABI signature of ApprovalForAll(address,address,bool)
+const approvalForAllSignature = '17307eab'
+// ABI signature of ownerOf(uint256)
+const ownerOfSignature = '6352211e'
+// ABI signature of safeTransferFrom(address,address,uint256,bytes)
+const safeTransferFromBytesSignature = 'b88d4fde'
+// ABI signature of safeTransferFrom(address,address,uint256) function
+const safeTransferFromSignature = '42842e0e'
 // ABI signature of transferFrom(address,address,uint256) function
 const transferFromSignature = '23b872dd'
+// ABI signature of approve(address,uint256)
+const approveSignature = '095ea7b3'
+// ABI signature of setApprovalForAll(address,bool)
+const setApprovalForAll = 'a22cb465'
+// ABI signature of getApproved(uint256)
+const getApprovedSignature = '081812fc'
+// ABI signature of isApprovedForAll(address,address)
+const isApprovedForAll = 'e985e9c5'
 // ABI signature of balanceOf(address) function
 const balanceOfSignature = '70a08231'
 // ABI signature of flashLoan(address,address,uint256,bytes) function
@@ -228,12 +248,12 @@ export class Classification {
 
   /**
    * Returns whether this contract code
-   * conforms to the ERC721 token standards
+   * implements the ERC721 interfaceId
    *
    * @param code
    */
-  private isErc721ContractCode(code: string): boolean {
-    return this.isErc721(code) && !this.isErc1155(code)
+  public isErc721ContractCode(code: string): boolean {
+    return !this.isErc1155(code) && (this.isErc721(code) || this.implementsErc721(code))
   }
 
   /**
@@ -504,11 +524,19 @@ export class Classification {
     address: string,
     callInfo: FunctionCall,
     toInfo: ContractInfo,
-    input: string
+    input?: string
   ): Promise<FunctionCall> {
     let extra: { [name: string]: Value } = {}
     // try to get ERC721 tokenURI on transfer
-    if (input.startsWith(`0x${transferFromSignature}`)) {
+    if (((input &&
+      // function call
+      (input.startsWith(`0x${transferFromSignature}`) 
+      || input.startsWith(`0x${safeTransferFromSignature}`)
+      || input.startsWith(`0x${safeTransferFromBytesSignature}`)))
+      // event
+      ||( callInfo.signature === 'Transfer(address,address,uint256)')
+      && toInfo.contractType?.standards?.includes('ERC721'))
+    ) {
       const tokenUri = await this.determineNFTUri(address, callInfo, toInfo)
       if (tokenUri != null) {
         extra = { ...extra, tokenUri }
@@ -643,4 +671,18 @@ export class Classification {
     code.includes(erc3668ResolveWithProofSignature) &&
     code.includes(erc3668NewSignersSignature) &&
     code.includes(erc3668UrlSignature)
+  public implementsErc721 = (code: string): boolean => 
+    code.includes(transferErc721Signature) &&
+    code.includes(approvalErc721Signature) &&
+    code.includes(approvalForAllSignature) &&
+    code.includes(ownerOfSignature) &&
+    code.includes(safeTransferFromBytesSignature) &&
+    code.includes(safeTransferFromSignature) &&
+    code.includes(transferFromSignature) &&
+    code.includes(approveSignature) &&
+    code.includes(setApprovalForAll) &&
+    code.includes(getApprovedSignature) &&
+    code.includes(isApprovedForAll) &&
+    code.includes(balanceOfSignature) &&
+    code.includes(supportsInterfaceSignature)
 }

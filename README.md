@@ -232,7 +232,9 @@ Defaults shown
     },
     client: {
       maxBatchSize: 100,
-      maxBatchTime: 0
+      maxBatchTime: 0,
+      individualReceipts: true,
+      maxRetryTime: 10_000
     }
   },
   abi: {

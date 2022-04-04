@@ -1,8 +1,6 @@
 {
   "name": "ethlogger-ethabi",
-  "collaborators": [
-    "Siegfried Puchbauer"
-  ],
+  "collaborators": ["Siegfried Puchbauer"],
   "version": "1.0.0",
   "files": [
     "ethlogger_ethabi_bg.js",
