@@ -282,7 +282,14 @@ export class EvmDecoder {
       contractAddress: evt.address,
       contractFingerprint: eventContractInfo?.fingerprint
     })
-
+    if (evt.address != null && decodedEventData != null && eventContractInfo != null) {
+      try {
+        const decodedExtra = await this.classification.getExtraData(evt.address, decodedEventData, eventContractInfo)
+        return formatLogEvent(evt, addressInfo(eventContractInfo), decodedExtra)
+      } catch (e) {
+        warn('could not get extra data for transaction log')
+      }
+    }
     return formatLogEvent(evt, addressInfo(eventContractInfo), decodedEventData)
   }
 
