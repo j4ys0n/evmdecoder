@@ -79,7 +79,7 @@ export class AbiRepository implements ManagedResource {
   public async initialize() {
     const config = this.config
     debug('Initializing ABI repository with config %O', config)
-    if (config.directory != null) {
+    if (config.directory?.length) {
       const abiCount = await this.loadAbisFromDir(config.directory!, config)
       info('Loaded %d ABIs from directory %s', abiCount, config.directory)
     }
