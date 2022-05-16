@@ -1,4 +1,4 @@
-import { deepMerge, removeEmtpyValues, prefixKeys } from '../../src/utils/obj'
+import { deepMerge, removeEmptyValues, prefixKeys } from '../../src/utils/obj'
 
 test('deepMerge', () => {
   expect(deepMerge({ a: 'foo' }, { a: 'bar' })).toMatchInlineSnapshot(`
@@ -39,7 +39,7 @@ test('deepMerge', () => {
     `)
 })
 
-test('removeEmtpyValues', () => {
+test('removeEmptyValues', () => {
   expect({ a: undefined, foo: null, yo: 'yo' }).toMatchInlineSnapshot(`
         Object {
           "a": undefined,
@@ -47,7 +47,7 @@ test('removeEmtpyValues', () => {
           "yo": "yo",
         }
     `)
-  expect(removeEmtpyValues({ a: undefined, foo: null, yo: 'yo' })).toMatchInlineSnapshot(`
+  expect(removeEmptyValues({ a: undefined, foo: null, yo: 'yo' })).toMatchInlineSnapshot(`
         Object {
           "yo": "yo",
         }

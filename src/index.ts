@@ -70,15 +70,15 @@ export class EvmDecoder {
   private config: Config
   private abortHandle: AbortHandle
   private abiRepo: AbiRepository
-  private classification: Classification
   private contractInfoCache: LRUCache<string, Promise<ContractInfo>>
   private resources: ManagedResource[] = []
   private waitAfterFailure: WaitTime
 
+  public classification: Classification
   public ethClient: EthereumClient
 
   constructor(config: DeepPartial<Config>) {
-    this.config = deepMerge(config, DEFAULT_CONFIG) as Config
+    this.config = deepMerge(DEFAULT_CONFIG, config) as Config
     this.abortHandle = new AbortHandle()
     this.waitAfterFailure = exponentialBackoff({ min: 0, max: this.config.eth.client.maxRetryTime })
     this.abiRepo = new AbiRepository(this.config.abi)
