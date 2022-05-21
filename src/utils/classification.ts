@@ -500,12 +500,12 @@ export class Classification {
       } catch (e) {
         warn("Couldn't get NFT ID on first pass. (%s)", (e as any).message)
       }
-      if (!tokenId) {
+      if (!tokenId && callInfo.params[2]) {
         tokenId = encodeParameter(<number>callInfo.params[2].value, 'uint256')
-      } else if (!tokenId.startsWith('0x') || tokenId.length < 66) {
+      } else if (tokenId && (!tokenId.startsWith('0x') || tokenId.length < 66)) {
         tokenId = encodeParameter(tokenId, 'uint256')
       }
-      if (toInfo.contractType.tokenUri) {
+      if (tokenId && toInfo.contractType.tokenUri) {
         let nftUri
         try {
           nftUri = await this.getNFTUri(address, tokenId)
