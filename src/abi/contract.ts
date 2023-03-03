@@ -30,6 +30,7 @@ export interface ContractType {
 }
 
 export interface TokenProperties {
+  type: string
   name: string
   symbol: string
   decimals?: number
@@ -39,10 +40,12 @@ export interface TokenProperties {
 }
 
 export interface MultiSigProperties {
+  type: string
   owners: string[]
 }
 
 export interface ERC3668Properties {
+  type: string
   url: string
 }
 

@@ -554,15 +554,17 @@ export class Classification {
   ): Promise<TokenProperties | MultiSigProperties | ERC3668Properties | undefined> {
     if (contractType.standards != null) {
       if (contractType.standards.includes('ERC20')) {
+        const type = 'ERC20'
         // get name
         const name = await this.ethClient.request(call(address, nameSignature, 'string'))
         // get symbol
         const symbol = await this.ethClient.request(call(address, symbolSignature, 'string'))
         // get decimals
         const decimals = await this.ethClient.request(call(address, decimalsSignature, 'uint256'))
-        return { name, symbol, decimals }
+        return { type, name, symbol, decimals }
       }
       if (contractType.standards.includes('ERC721')) {
+        const type = 'ERC721'
         // get name
         const name = await this.ethClient.request(call(address, nameSignature, 'string'))
         // get symbol
@@ -574,16 +576,18 @@ export class Classification {
           ? await this.ethClient.request(call(address, totalSupplySignature, 'uint256'))
           : undefined
 
-        return { name, symbol, baseUri, totalSupply }
+        return { type, name, symbol, baseUri, totalSupply }
       }
       if (contractType.standards.includes('ERC3668')) {
+        const type = 'ERC3668'
         const url = await this.ethClient.request(call(address, erc3668UrlSignature, 'string'))
-        return { url }
+        return { type, url }
       }
     }
     if (contractType.name === 'GnosisMultisig' || contractType.name === 'GnosisSafe') {
+      const type = contractType.name
       const owners: string[] = await this.ethClient.request(call(address, gnosisGetOwnersSignature, 'address[]'))
-      return { owners }
+      return { type, owners }
     }
   }
 
