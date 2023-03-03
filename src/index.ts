@@ -146,9 +146,13 @@ export class EvmDecoder {
     return await this.processPendingTransaction(transaction)
   }
 
-  public async getTransaction(hash: string): Promise<FormattedTransactionResponse> {
-    const transaction = await this.ethClient.request(getTransaction(hash))
-    return await this.processTransaction(transaction, true)
+  public async getTransaction(hash: string): Promise<FormattedTransactionResponse | undefined> {
+    try {
+      const transaction = await this.ethClient.request(getTransaction(hash))
+      return await this.processTransaction(transaction, true)
+    } catch (e) {
+      return undefined
+    }
   }
 
   public async getTransactionReceipt(hash: string): Promise<FormattedLogEvent[]> {
