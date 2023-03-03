@@ -16,11 +16,11 @@ import {
   RawParityTransactionReceipt,
   RawTransactionResponse
 } from './eth/responses'
-import { FormattedBlock, FormattedLogEvent, FormattedTransaction } from './msgs'
+import { FormattedBlock, FormattedLogEvent, FormattedPendingTransaction, FormattedTransaction } from './msgs'
 import { bigIntToNumber } from './utils/bn'
 import { Classification } from './utils/classification'
 import { RuntimeError } from './utils/error'
-import { formatBlock, formatLogEvent, formatTransaction, parseBlockTime } from './utils/format'
+import { formatBlock, formatLogEvent, formatPendingTransaction, formatTransaction, parseBlockTime } from './utils/format'
 import { deepMerge } from './utils/obj'
 
 const { info, warn, error } = createModuleDebug('evmdecoder:main')
@@ -139,6 +139,11 @@ export class EvmDecoder {
       .catch(e => Promise.reject(new Error(`Failed to request batch of blocks ${blockNumbers.join(', ')}: ${e}`)))
 
     return await Promise.all(blocks.map(b => this.processBlock(b)))
+  }
+
+  public async getPendingTransaction(hash: string): Promise<FormattedPendingTransaction> {
+    const transaction = await this.ethClient.request(getTransaction(hash))
+    return await this.processPendingTransaction(transaction)
   }
 
   public async getTransaction(hash: string): Promise<FormattedTransactionResponse> {
@@ -267,6 +272,37 @@ export class EvmDecoder {
       transaction,
       logEvents
     }
+  }
+
+  private async processPendingTransaction(rawTx: RawTransactionResponse | string): Promise<FormattedPendingTransaction> {
+    if (typeof rawTx === 'string') {
+      warn('Received raw transaction %s')
+      throw new RuntimeError(`Received raw transaction`)
+    }
+
+    const toInfo =
+      rawTx.to != null
+        ? await contractInfo({
+            address: rawTx.to,
+            ethBatchClient: this.ethClient,
+            abiRepo: this.abiRepo,
+            contractInfoCache: this.contractInfoCache,
+            classification: this.classification
+          })
+        : undefined
+
+    const callInfo =
+      toInfo && toInfo.isContract
+        ? await this.decodeFunctionCall({ input: rawTx.input, address: rawTx.to! })
+        : undefined
+    
+    return formatPendingTransaction(
+      rawTx,
+      'pending',
+      undefined,
+      addressInfo(toInfo),
+      callInfo
+    )
   }
 
   private async processTransactionLog(evt: RawLogResponse | RawParityLogResponse): Promise<FormattedLogEvent> {

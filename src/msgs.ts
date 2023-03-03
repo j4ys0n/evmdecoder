@@ -67,6 +67,10 @@ export interface BaseFormattedTransaction {
   gas: number | string
   /** gas price provided by the sender in Wei */
   gasPrice: number | string
+  /** a cap on base_fee + priority_fee */
+  maxFeePerGas?: number | string
+  /** a cap on the priority_fee specifically  */
+  maxPriorityFeePerGas?: number | string
   /** the data send along with the transaction */
   input: string
   /** the number of transactions made by the sender prior to this one */

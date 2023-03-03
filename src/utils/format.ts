@@ -72,7 +72,7 @@ function formatStatus(receiptStatus?: string): 'success' | 'failure' | null {
 }
 
 function formatBaseTransaction(rawTx: RawTransactionResponse): BaseFormattedTransaction {
-  return {
+  const base: BaseFormattedTransaction = {
     hash: rawTx.hash,
     from: toChecksumAddress(rawTx.from),
     to: rawTx.to != null ? toChecksumAddress(rawTx.to) : null,
@@ -85,6 +85,13 @@ function formatBaseTransaction(rawTx: RawTransactionResponse): BaseFormattedTran
     r: rawTx.r,
     s: rawTx.s
   }
+  if (rawTx.maxFeePerGas != null) {
+    base.maxFeePerGas = parseBigInt(rawTx.maxFeePerGas)
+  }
+  if (rawTx.maxPriorityFeePerGas != null) {
+    base.maxPriorityFeePerGas = parseBigInt(rawTx.maxPriorityFeePerGas)
+  }
+  return base
 }
 
 export function formatTransaction(
