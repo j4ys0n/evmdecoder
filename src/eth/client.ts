@@ -64,13 +64,17 @@ export class EthereumClient {
   constructor(public readonly transport: EthereumTransport) {}
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async request<P extends any[], R>(req: EthRequest<P, R>, options?: { immediate?: boolean }): Promise<R> {
+  async request<P extends any[], R>(req: EthRequest<P, R>, options?: { immediate?: boolean, ignoreErrors?: boolean }): Promise<R> {
     const payload = createJsonRpcPayload(req.method, req.params)
     const res = await this.transport.send(payload)
     if (payload.id !== res.id) {
       throw new JsonRpcError(`JSON RPC Response ID mismatch. Expected ${payload.id} but got ${res.id}`)
     }
-    checkError(res)
+    if (options != null && !!options.ignoreErrors) {
+      // ignore errors
+    } else {
+      checkError(res)
+    }
     return typeof req.response === 'function' ? req.response(res) : res.result
   }
 
