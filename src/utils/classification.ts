@@ -553,8 +553,7 @@ export class Classification {
       try {
         const decimals = parseInt(input, 10)
         return decimals
-      } catch (e: any) {
-      }
+      } catch (e) {}
     }
     return input
   }
