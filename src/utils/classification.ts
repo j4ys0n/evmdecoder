@@ -616,7 +616,8 @@ export class Classification {
     this.usesOpenZeppelinStorageSlot(code) ||
     this.usesPolygonStorageSlot(code)
   private isErc1967Proxy = (code: string): boolean =>
-    code.includes(implementationSignature) && code.includes(fallbackSignature) && code.includes(upgradedEvent)
+    (code.includes(implementationSignature) && code.includes(fallbackSignature) && code.includes(upgradedEvent)) ||
+    this.usesEip1967StorageSlot(code)
   private isErc1822Proxy = (code: string): boolean => code.includes(proxiableUUIDSignature)
   private isGnosisSafe = (code: string): boolean =>
     this.usesGnosisSafeStorageSlot(code) && code.includes(gnosisSafeCallDataLoadIdentifier)
