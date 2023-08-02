@@ -548,6 +548,17 @@ export class Classification {
     return callInfo
   }
 
+  private tryParseDecimals(input: any) {
+    if (input != null && typeof input === 'string') {
+      try {
+        const decimals = parseInt(input, 10)
+        return decimals
+      } catch (e: any) {
+      }
+    }
+    return input
+  }
+
   public async getContractProperties(
     address: string,
     contractType: ContractType
@@ -560,7 +571,8 @@ export class Classification {
         // get symbol
         const symbol = await this.ethClient.request(call(address, symbolSignature, 'string'))
         // get decimals
-        const decimals = await this.ethClient.request(call(address, decimalsSignature, 'uint256'))
+        const decimalsRaw = await this.ethClient.request(call(address, decimalsSignature, 'uint256'))
+        const decimals = this.tryParseDecimals(decimalsRaw)
         return { type, name, symbol, decimals }
       }
       if (contractType.standards.includes('ERC721')) {
