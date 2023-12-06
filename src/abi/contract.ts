@@ -133,10 +133,6 @@ export function computeContractFingerprint(
 export async function getContractInfo(
   address: Address,
   resources: ContractResources
-  // ethClient: EthereumClient,
-  // classification: Classification,
-  // signatureMatcher?: SignatureMatcher,
-  // contractNameLookup?: ContractNameLookup
 ): Promise<ContractInfo> {
   const { ethClient, classification, abiRepo } = resources
   const signatureMatcher: SignatureMatcher = (sig: string) => abiRepo.getMatchingSignature(sig)
