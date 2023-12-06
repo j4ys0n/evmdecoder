@@ -2,7 +2,7 @@ import { retry, AbortHandle, WaitTime, exponentialBackoff } from '@splunkdlt/asy
 import { LRUCache } from '@splunkdlt/cache'
 import { createModuleDebug } from '@splunkdlt/debug-logging'
 import { ManagedResource } from '@splunkdlt/managed-resource'
-import { ContractInfo, contractInfo } from './abi/contract'
+import { ContractInfo, ContractResources, contractInfo } from './abi/contract'
 import { DecodedFunctionCall } from './abi/decode'
 import { AbiRepository } from './abi/repo'
 import { Config, DeepPartial } from './config'
@@ -18,7 +18,7 @@ import {
 } from './eth/responses'
 import { FormattedBlock, FormattedLogEvent, FormattedPendingTransaction, FormattedTransaction } from './msgs'
 import { bigIntToNumber } from './utils/bn'
-import { Classification } from './utils/classification'
+import { Classification, ClassificationResources } from './utils/classification'
 import { RuntimeError } from './utils/error'
 import { formatBlock, formatLogEvent, formatPendingTransaction, formatTransaction, parseBlockTime } from './utils/format'
 import { deepMerge } from './utils/obj'
@@ -76,6 +76,7 @@ export class EvmDecoder {
 
   public classification: Classification
   public ethClient: EthereumClient
+  private contractResources: ContractResources
 
   constructor(config: DeepPartial<Config>) {
     this.config = deepMerge(DEFAULT_CONFIG, config) as Config
@@ -95,7 +96,18 @@ export class EvmDecoder {
             maxBatchTime: this.config.eth.client.maxBatchTime
           })
         : new EthereumClient(transport)
-    this.classification = new Classification(new EthereumClient(transport))
+    const classificationResources: ClassificationResources = {
+      ethClient: this.ethClient,
+      abiRepo: this.abiRepo,
+      contractInfoCache: this.contractInfoCache
+    }
+    this.classification = new Classification(classificationResources)
+    this.contractResources =  {
+      ethClient: this.ethClient,
+      abiRepo: this.abiRepo,
+      contractInfoCache: this.contractInfoCache,
+      classification: this.classification
+    }
   }
 
   public async initialize() {
@@ -121,10 +133,7 @@ export class EvmDecoder {
   public async contractInfo({ address }: { address: string }) {
     return contractInfo({
       address,
-      ethBatchClient: this.ethClient,
-      abiRepo: this.abiRepo,
-      contractInfoCache: this.contractInfoCache,
-      classification: this.classification
+      resources: this.contractResources
     })
   }
 
@@ -225,19 +234,13 @@ export class EvmDecoder {
       rawTx.to != null
         ? contractInfo({
             address: rawTx.to,
-            ethBatchClient: this.ethClient,
-            abiRepo: this.abiRepo,
-            contractInfoCache: this.contractInfoCache,
-            classification: this.classification
+            resources: this.contractResources
           })
         : undefined,
       rawTx.from != null
         ? contractInfo({
             address: rawTx.from,
-            ethBatchClient: this.ethClient,
-            abiRepo: this.abiRepo,
-            contractInfoCache: this.contractInfoCache,
-            classification: this.classification
+            resources: this.contractResources
           })
         : undefined
     ])
@@ -246,10 +249,7 @@ export class EvmDecoder {
       receipt?.contractAddress != null
         ? await contractInfo({
             address: receipt.contractAddress,
-            ethBatchClient: this.ethClient,
-            abiRepo: this.abiRepo,
-            contractInfoCache: this.contractInfoCache,
-            classification: this.classification
+            resources: this.contractResources
           })
         : undefined
 
@@ -292,10 +292,7 @@ export class EvmDecoder {
       rawTx.to != null
         ? await contractInfo({
             address: rawTx.to,
-            ethBatchClient: this.ethClient,
-            abiRepo: this.abiRepo,
-            contractInfoCache: this.contractInfoCache,
-            classification: this.classification
+            resources: this.contractResources
           })
         : undefined
 
@@ -310,10 +307,7 @@ export class EvmDecoder {
   public async processTransactionLog(evt: RawLogResponse | RawParityLogResponse): Promise<FormattedLogEvent> {
     const eventContractInfo = await contractInfo({
       address: evt.address,
-      ethBatchClient: this.ethClient,
-      abiRepo: this.abiRepo,
-      contractInfoCache: this.contractInfoCache,
-      classification: this.classification
+      resources: this.contractResources
     })
 
     const decodedEventData = this.abiRepo.decodeLogEvent(evt, {

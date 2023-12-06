@@ -5,10 +5,15 @@ import {
   MultiSigProperties,
   ContractProxy,
   ERC3668Properties,
-  ContractInfo
+  ContractInfo,
+  contractInfo,
+  TokenPair,
+  TokenPairInfo
 } from '../abi/contract'
 import { getStorageAt, getCode, call, encodeParameter } from '../eth/requests'
 import { EthereumClient } from '../eth/client'
+import { AbiRepository } from '../abi/repo'
+import { LRUCache } from '@splunkdlt/cache'
 
 export type Value = string | number | boolean | Array<string | number | boolean>
 
@@ -162,12 +167,32 @@ const erc3668MakeSignatureHashSignature = '1dcfea09'
 const erc3668NewSignersSignature = 'ab0b9cc3a46b568cb08d985497cde8ab7e18892d01f58db7dc7f0d2af859b2d7'
 // ERC3668 url signature
 const erc3668UrlSignature = '5600f04f'
+// uniswap v2 pair DOMAIN_SEPARATOR()
+const uniswapV2PairDomainSeparator = '3644e515'
+// uniswal v2 pair Swap(address,uint256,uint256,uint256,uint256,address)
+const uniswapV2PairSwap = 'd78ad95f'
+// token0() signature
+const token0Signature = '0dfe1681'
+// token1() signature
+const token1Signature = 'd21220a7'
+
+export interface ClassificationResources {
+  ethClient: EthereumClient
+  abiRepo: AbiRepository
+  contractInfoCache: LRUCache<string, Promise<ContractInfo>>
+}
+
+export type ContractProperties = TokenProperties & MultiSigProperties & ERC3668Properties & TokenPair
 
 export class Classification {
   private ethClient: EthereumClient
+  private abiRepo: AbiRepository
+  private contractInfoCache: LRUCache<string, Promise<ContractInfo>>
 
-  constructor(ethClient: EthereumClient) {
+  constructor({ ethClient, abiRepo, contractInfoCache }: ClassificationResources) {
     this.ethClient = ethClient
+    this.abiRepo = abiRepo
+    this.contractInfoCache = contractInfoCache
   }
 
   private removeAddressPadding(encodedAddress: string): string | undefined {
@@ -285,7 +310,15 @@ export class Classification {
   /**
    * Attempts to classify the contract type.
    */
-  public async classifyContract(address: string, code: string, contractType?: ContractType): Promise<ContractType> {
+  public async classifyContract({
+    address,
+    code,
+    contractType
+  }: {
+    address: string,
+    code: string,
+    contractType?: ContractType
+  }): Promise<ContractType> {
     if (contractType == null) {
       contractType = { name: null }
     }
@@ -429,18 +462,25 @@ export class Classification {
       contractType.name = 'OffchainResolver'
       standards.push('ERC3668')
     }
+    // liquidity pools, swaps, etc
+    if (this.hasTokenPair(code)) {
+      if (contractType.name == null || contractType.name === 'Token') {
+        contractType.name = 'TokenPair'
+      }
+    }
 
     if (standards.length > 0) {
       contractType.standards = standards
     }
-    const numProxies = proxies.length
 
+
+    const numProxies = proxies.length
     try {
       if (numProxies > initialProxies) {
         const lastProxyAddress = contractType?.proxies![contractType.proxies?.length! - 1]
         if (lastProxyAddress.target != null) {
           const nextCode = await this.ethClient.request(getCode(lastProxyAddress.target))
-          return await this.classifyContract(lastProxyAddress.target, nextCode, contractType)
+          return await this.classifyContract({ address: lastProxyAddress.target, code: nextCode, contractType })
         }
       }
     } catch (e) {
@@ -558,10 +598,50 @@ export class Classification {
     return input
   }
 
+  public async getTokenPair(
+    address: string
+  ): Promise<{ token0: TokenPairInfo | undefined, token1: TokenPairInfo | undefined }> {
+    const { ethClient, abiRepo, contractInfoCache } = this
+    const resources = { ethClient, abiRepo, contractInfoCache, classification: this }
+    let token0: TokenPairInfo | undefined = undefined
+    let token1: TokenPairInfo | undefined = undefined
+    // get token 0
+    const token0Address: string | undefined = await this.ethClient
+      .request(call(address, token0Signature, 'address'))
+      .catch(e => {
+        warn("Couldn't get token0 address from %s", address)
+        return undefined
+      })
+    if (token0Address != null) {
+      token0 = {
+        address: token0Address,
+        info: await contractInfo({ address: token0Address, resources })
+      }
+    }
+    // get token 1
+    const token1Address: string | undefined = await this.ethClient
+      .request(call(address, token1Signature, 'address'))
+      .catch(e => {
+        warn("Couldn't get token1 address from %s", address)
+        return undefined
+      })
+    if (token1Address != null) {
+      token1 = {
+        address: token1Address,
+        info: await contractInfo({ address: token1Address, resources })
+      }
+    }
+    return { token0, token1 }
+  }
+
   public async getContractProperties(
     address: string,
     contractType: ContractType
-  ): Promise<TokenProperties | MultiSigProperties | ERC3668Properties | undefined> {
+  ): Promise<Partial<ContractProperties> | undefined> {
+    console.log(contractType.name, contractType.standards)
+    const response: { [key: string]: any } = {
+      type: ''
+    }
     if (contractType.standards != null) {
       if (contractType.standards.includes('ERC20')) {
         const type = 'ERC20'
@@ -572,7 +652,10 @@ export class Classification {
         // get decimals
         const decimalsRaw = await this.ethClient.request(call(address, decimalsSignature, 'uint256'))
         const decimals = this.tryParseDecimals(decimalsRaw)
-        return { type, name, symbol, decimals }
+        response.type = `${response.type} ${type}`.trim()
+        response.name = name
+        response.symbol = symbol
+        response.decimals = decimals
       }
       if (contractType.standards.includes('ERC721')) {
         const type = 'ERC721'
@@ -586,20 +669,40 @@ export class Classification {
         const totalSupply = contractType.enumeration
           ? await this.ethClient.request(call(address, totalSupplySignature, 'uint256'))
           : undefined
-
-        return { type, name, symbol, baseUri, totalSupply }
+        response.type = `${response.type} ${type}`.trim()
+        response.name = name
+        response.symbol = symbol
+        response.baseUri = baseUri
+        response.totalSupply = totalSupply
       }
       if (contractType.standards.includes('ERC3668')) {
         const type = 'ERC3668'
         const url = await this.ethClient.request(call(address, erc3668UrlSignature, 'string'))
-        return { type, url }
+        response.type = `${response.type} ${type}`.trim()
+        response.url = url
       }
     }
     if (contractType.name === 'GnosisMultisig' || contractType.name === 'GnosisSafe') {
       const type = contractType.name
       const owners: string[] = await this.ethClient.request(call(address, gnosisGetOwnersSignature, 'address[]'))
-      return { type, owners }
+      response.type = `${response.type} ${type}`.trim()
+      response.owners = owners
     }
+    if (contractType.name != null && contractType.name.includes('TokenPair')) {
+      const type = contractType.name
+      const { token0, token1 } = await this.getTokenPair(address)
+      // console.log('token0')
+      // console.log(token0)
+      // console.log('token1')
+      // console.log(token1)
+      response.type = `${response.type} ${type}`.trim()
+      response.token0 = token0
+      response.token1 = token1
+    }
+    if (Object.keys(response).length === 1 && response.type === '') {
+      return undefined
+    }
+    return response
   }
 
   private canReceive(code: string): string[] {
@@ -701,4 +804,5 @@ export class Classification {
     code.includes(isApprovedForAll) &&
     code.includes(balanceOfSignature) &&
     code.includes(supportsInterfaceSignature)
+  public hasTokenPair = (code: string): boolean => code.includes(token0Signature) && code.includes(token1Signature)
 }
