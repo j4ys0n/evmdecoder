@@ -1,9 +1,9 @@
 import { createModuleDebug, TRACE_ENABLED } from '@splunkdlt/debug-logging'
-import { cachedAsync, Cache, NoopCache } from '@splunkdlt/cache'
+import { cachedAsync, Cache, NoopCache, LRUCache } from '@splunkdlt/cache'
 import { EthereumClient } from '../eth/client'
 import { getCode } from '../eth/requests'
 import { sha3 } from './wasm'
-import { Classification } from '../utils/classification'
+import { Classification, ClassificationResources, ContractProperties } from '../utils/classification'
 import { AbiRepository } from './repo'
 
 const { info, debug, trace, warn } = createModuleDebug('abi:contract')
@@ -49,6 +49,17 @@ export interface ERC3668Properties {
   url: string
 }
 
+export interface TokenPairInfo {
+  address: string
+  info?: ContractInfo
+}
+
+export interface TokenPair {
+  type: string
+  token0?: TokenPairInfo
+  token1?: TokenPairInfo
+}
+
 export interface ContractInfo {
   /** True if the corresponding account is a smart contract, otherwise false */
   isContract: boolean
@@ -59,7 +70,7 @@ export interface ContractInfo {
   /** Type of contract from signature matching */
   contractType?: ContractType
   /** Token properties (if ERC20, ERC721, ERC777, ERC1155) */
-  properties?: TokenProperties | MultiSigProperties | ERC3668Properties
+  properties?: Partial<ContractProperties>
 }
 
 /** Lookup function to find matching signature for a hash */
@@ -67,6 +78,10 @@ export type SignatureMatcher = (sig: string, address?: Address) => string | unde
 
 /** Lookup function to find name for a given contract address or fingerprint */
 export type ContractNameLookup = (address: Address, fingerprint: string) => string | undefined
+
+export interface ContractResources extends ClassificationResources {
+  classification: Classification
+}
 
 /**
  * Find function and event signature hashes in the EVM bytecode and attempt to match them against
@@ -117,11 +132,12 @@ export function computeContractFingerprint(
  */
 export async function getContractInfo(
   address: Address,
-  ethClient: EthereumClient,
-  classification: Classification,
-  signatureMatcher?: SignatureMatcher,
-  contractNameLookup?: ContractNameLookup
+  resources: ContractResources
 ): Promise<ContractInfo> {
+  const { ethClient, classification, abiRepo } = resources
+  const signatureMatcher: SignatureMatcher = (sig: string) => abiRepo.getMatchingSignature(sig)
+  const contractNameLookup = (address: string, fingerprint: string) =>
+    abiRepo.getContractByAddress(address)?.contractName ?? abiRepo.getContractByFingerprint(fingerprint)?.contractName
   debug('Retrieving contract information for address %s', address)
   if (signatureMatcher == null) {
     return { isContract: true }
@@ -137,7 +153,7 @@ export async function getContractInfo(
   }
   const contractName =
     fingerprint != null && contractNameLookup != null ? contractNameLookup(address, fingerprint) : undefined
-  const contractType = await classification.classifyContract(address, code)
+  const contractType = await classification.classifyContract({ address, code })
   const properties = await getContractProperties(classification, contractType, address)
   return {
     isContract: true,
@@ -152,15 +168,17 @@ async function getContractProperties(
   classification: Classification,
   contractType: ContractType,
   address: string
-): Promise<TokenProperties | MultiSigProperties | ERC3668Properties | undefined> {
+): Promise<Partial<ContractProperties> | undefined> {
   const isGnosis = contractType.name != null ? contractType.name.includes('Gnosis') : false
-  if (contractType.standards != null || isGnosis) {
+  const isTokenPair = contractType.name === 'TokenPair'
+  if (contractType.standards != null || isGnosis || isTokenPair) {
     // const target = (Array.isArray(contractType.proxies) && !isGnosis)
     //     ? contractType.proxies[contractType.proxies.length -1].target
     //     : address;
     const target = address
     if (target != null) {
       try {
+        console.log('getting contract properties')
         const properties = await classification.getContractProperties(target, contractType)
         return properties
       } catch (e) {
@@ -173,29 +191,19 @@ async function getContractProperties(
 
 export async function contractInfo({
   address,
-  ethBatchClient,
-  abiRepo,
-  contractInfoCache = new NoopCache(),
-  classification
+  resources
 }: {
   address: Address
-  ethBatchClient: EthereumClient
-  abiRepo: AbiRepository
-  contractInfoCache: Cache<string, Promise<ContractInfo>>
-  classification: Classification
+  resources: ContractResources
 }): Promise<ContractInfo | undefined> {
+  const { ethClient, abiRepo, contractInfoCache, classification } = resources
   if (abiRepo == null) {
     return
   }
   const result = await cachedAsync(address, contractInfoCache, (addr: Address) =>
     getContractInfo(
       addr,
-      ethBatchClient,
-      classification,
-      (sig: string) => abiRepo.getMatchingSignature(sig),
-      (address: string, fingerprint: string) =>
-        abiRepo.getContractByAddress(address)?.contractName ??
-        abiRepo.getContractByFingerprint(fingerprint)?.contractName
+      resources
     )
   )
   return result
