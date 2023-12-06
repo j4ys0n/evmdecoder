@@ -638,7 +638,6 @@ export class Classification {
     address: string,
     contractType: ContractType
   ): Promise<Partial<ContractProperties> | undefined> {
-    console.log(contractType.name, contractType.standards)
     const response: { [key: string]: any } = {
       type: ''
     }
@@ -691,10 +690,6 @@ export class Classification {
     if (contractType.name != null && contractType.name.includes('TokenPair')) {
       const type = contractType.name
       const { token0, token1 } = await this.getTokenPair(address)
-      // console.log('token0')
-      // console.log(token0)
-      // console.log('token1')
-      // console.log(token1)
       response.type = `${response.type} ${type}`.trim()
       response.token0 = token0
       response.token1 = token1
