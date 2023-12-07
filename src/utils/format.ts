@@ -137,7 +137,7 @@ export function formatPendingTransaction(
 }
 
 export function formatLogEvent(
-  evt: RawLogResponse | RawParityLogResponse,
+  evt: RawLogResponse | RawParityLogResponse | FormattedLogEvent,
   addressInfo?: AddressInfo,
   event?: EventData
 ): FormattedLogEvent {

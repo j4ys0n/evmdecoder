@@ -11,6 +11,7 @@ import {
 import { loadAbiFile, loadSignatureFile, searchAbiFiles, AbiFileContents } from './files'
 import { AbiItemDefinition } from './item'
 import { computeSignature, computeSignatureHash } from './signature'
+import { FormattedLogEvent } from '../msgs'
 
 const { warn, debug, info, trace } = createModuleDebug('abi:repo')
 
@@ -264,7 +265,7 @@ export class AbiRepository implements ManagedResource {
     )
   }
 
-  public decodeLogEvent(logEvent: RawLogResponse, matchParams: AbiMatchParams): DecodedFunctionCall | undefined {
+  public decodeLogEvent(logEvent: RawLogResponse | FormattedLogEvent, matchParams: AbiMatchParams): DecodedFunctionCall | undefined {
     if (!Array.isArray(logEvent.topics) || logEvent.topics.length === 0) {
       if (TRACE_ENABLED) {
         trace('No topics in log event tx=%s idx=%s - nothing to decode', logEvent.transactionHash, logEvent.logIndex)
