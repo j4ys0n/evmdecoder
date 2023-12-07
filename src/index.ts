@@ -304,7 +304,7 @@ export class EvmDecoder {
     return formatPendingTransaction(rawTx, 'pending', undefined, addressInfo(toInfo), callInfo)
   }
 
-  public async processTransactionLog(evt: RawLogResponse | RawParityLogResponse): Promise<FormattedLogEvent> {
+  public async processTransactionLog(evt: RawLogResponse | RawParityLogResponse | FormattedLogEvent): Promise<FormattedLogEvent> {
     const eventContractInfo = await contractInfo({
       address: evt.address,
       resources: this.contractResources
