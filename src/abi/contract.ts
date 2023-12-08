@@ -178,7 +178,6 @@ async function getContractProperties(
     const target = address
     if (target != null) {
       try {
-        console.log('getting contract properties')
         const properties = await classification.getContractProperties(target, contractType)
         return properties
       } catch (e) {
