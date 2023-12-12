@@ -5,6 +5,8 @@ export interface Config {
   abi: AbiRepositoryConfig
   /** Contract info cache settings */
   contractInfo: ContractInfoConfigSchema
+  /** Log settings */
+  logging: LogConfigSchema
 }
 
 /** General Ethereum configuration including client and transport, defining how evmdecoder talks to the ethereum node */
@@ -58,6 +60,11 @@ export interface AbiRepositoryConfig {
 export interface ContractInfoConfigSchema {
   /** Maximum number of contract info results to cache in memory. Set to 0 to disable the cache. */
   maxCacheEntries: number
+}
+
+export interface LogConfigSchema {
+  showDecodeWarnings?: boolean
+  showClassificationWarnings?: boolean
 }
 
 export interface HttpTransportConfig {

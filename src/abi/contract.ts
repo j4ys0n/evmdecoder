@@ -195,7 +195,7 @@ export async function contractInfo({
   address: Address
   resources: ContractResources
 }): Promise<ContractInfo | undefined> {
-  const { ethClient, abiRepo, contractInfoCache, classification } = resources
+  const { abiRepo, contractInfoCache } = resources
   if (abiRepo == null) {
     return
   }

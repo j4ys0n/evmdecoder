@@ -39,7 +39,7 @@ export function decodeResponseType(type: string, data: string): any {
     try {
       return web3.eth.abi.decodeParameter(type, data)
     } catch (e) {
-      warn('Failed to decode string response, trying hexToAscii')
+      debug('Failed to decode string response, trying hexToAscii')
       return web3.utils.hexToAscii(data).replace(/\u0000/g, '')
     }
   }
