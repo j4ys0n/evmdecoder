@@ -51,7 +51,8 @@ const DEFAULT_CONFIG: DeepPartial<Config> = {
   },
   contractInfo: {
     maxCacheEntries: 25_000
-  }
+  },
+  logging: {}
 }
 
 interface FullBlockResponse {
@@ -82,7 +83,7 @@ export class EvmDecoder {
     this.config = deepMerge(DEFAULT_CONFIG, config) as Config
     this.abortHandle = new AbortHandle()
     this.waitAfterFailure = exponentialBackoff({ min: 0, max: this.config.eth.client.maxRetryTime })
-    this.abiRepo = new AbiRepository(this.config.abi)
+    this.abiRepo = new AbiRepository(this.config.abi, this.config.logging)
     this.addResource(this.abiRepo)
 
     this.contractInfoCache = new LRUCache<string, Promise<ContractInfo>>({
@@ -101,7 +102,7 @@ export class EvmDecoder {
       abiRepo: this.abiRepo,
       contractInfoCache: this.contractInfoCache
     }
-    this.classification = new Classification(classificationResources)
+    this.classification = new Classification(classificationResources, this.config.logging)
     this.contractResources =  {
       ethClient: this.ethClient,
       abiRepo: this.abiRepo,

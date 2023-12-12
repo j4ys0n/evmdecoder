@@ -14,6 +14,7 @@ import { getStorageAt, getCode, call, encodeParameter } from '../eth/requests'
 import { EthereumClient } from '../eth/client'
 import { AbiRepository } from '../abi/repo'
 import { LRUCache } from '@splunkdlt/cache'
+import { LogConfigSchema } from '../config'
 
 export type Value = string | number | boolean | Array<string | number | boolean>
 
@@ -189,7 +190,7 @@ export class Classification {
   private abiRepo: AbiRepository
   private contractInfoCache: LRUCache<string, Promise<ContractInfo>>
 
-  constructor({ ethClient, abiRepo, contractInfoCache }: ClassificationResources) {
+  constructor({ ethClient, abiRepo, contractInfoCache }: ClassificationResources, private logging: LogConfigSchema) {
     this.ethClient = ethClient
     this.abiRepo = abiRepo
     this.contractInfoCache = contractInfoCache
@@ -219,7 +220,9 @@ export class Classification {
     const storageSlot = storageSlotHex.startsWith('0x') ? storageSlotHex : `0x${storageSlotHex}`
     // info(`getting storage for ${address} at ${storageSlot}`)
     const encodedAddress = await this.ethClient.request(getStorageAt(address, storageSlot)).catch(e => {
-      warn('Failed to get contract address from storage slot %s %s (%s)', address, storageSlot, (e as any).message)
+      if (this.logging.showClassificationWarnings) {
+        warn('Failed to get contract address from storage slot %s %s (%s)', address, storageSlot, (e as any).message)
+      }
       return undefined
     })
     // info(`encoded address: ${encodedAddress}`)
@@ -295,7 +298,9 @@ export class Classification {
     try {
       return (await this.ethClient.request(call(address, implementationSignature, 'address'))) as string
     } catch (e) {
-      warn(`couldn't get proxied implementation address from %s`, address)
+      if (this.logging.showClassificationWarnings) {
+        warn(`couldn't get proxied implementation address from %s`, address)
+      }
     }
   }
 
@@ -303,7 +308,9 @@ export class Classification {
     try {
       return (await this.ethClient.request(call(address, proxiableUUIDSignature, 'hex'))) as string
     } catch (e) {
-      warn(`couldn't get storage slot from %s`, address)
+      if (this.logging.showClassificationWarnings) {
+        warn(`couldn't get storage slot from %s`, address)
+      }
     }
   }
 
@@ -484,11 +491,13 @@ export class Classification {
         }
       }
     } catch (e) {
-      warn(
-        'Unable to get next contract in recusive proxy chain. %s, %s',
-        JSON.stringify(contractType),
-        (e as any).message
-      )
+      if (this.logging.showClassificationWarnings) {
+        warn(
+          'Unable to get next contract in recusive proxy chain. %s, %s',
+          JSON.stringify(contractType),
+          (e as any).message
+        )
+      }
     }
     return contractType
   }
@@ -497,7 +506,9 @@ export class Classification {
     const encodedIndex = encodeParameter(index, 'uint256')
     const callData = this.getErc721IdByIndex(encodedIndex)
     return await this.ethClient.request(call(address, callData, 'uint256')).catch(e => {
-      warn("Couldn't get NFT id %s. (%s)", encodedIndex, (e as any).message)
+      if (this.logging.showClassificationWarnings) {
+        warn("Couldn't get NFT id %s. (%s)", encodedIndex, (e as any).message)
+      }
       return undefined
     })
   }
@@ -505,7 +516,9 @@ export class Classification {
   public async getNFTUri(address: string, id: string): Promise<string | undefined> {
     const callData = this.getErc721UriById(id)
     return await this.ethClient.request(call(address, callData, 'string')).catch(e => {
-      warn("Couldn't get NFT URI of %s from %s. (%s)", id, address, (e as any).message)
+      if (this.logging.showClassificationWarnings) {
+        warn("Couldn't get NFT URI of %s from %s. (%s)", id, address, (e as any).message)
+      }
       return undefined
     })
   }
@@ -523,7 +536,9 @@ export class Classification {
           try {
             nftUri = await this.getNFTUri(address, encodeParameter(<number>callInfo.params[2].value, 'uint256'))
           } catch (e) {
-            warn("Couldn't get NFT URI. (%s %s)", address, (e as any).message)
+            if (this.logging.showClassificationWarnings) {
+              warn("Couldn't get NFT URI. (%s %s)", address, (e as any).message)
+            }
           }
           if (nftUri) {
             return nftUri
@@ -538,7 +553,9 @@ export class Classification {
           ? await this.getNFTId(address, <number>callInfo.params[2].value)
           : encodeParameter(<number>callInfo.params[2].value, 'uint256')
       } catch (e) {
-        warn("Couldn't get NFT ID on first pass. (%s)", (e as any).message)
+        if (this.logging.showClassificationWarnings) {
+          warn("Couldn't get NFT ID on first pass. (%s)", (e as any).message)
+        }
       }
       if (!tokenId && callInfo.params[2]) {
         tokenId = encodeParameter(<number>callInfo.params[2].value, 'uint256')
@@ -550,7 +567,9 @@ export class Classification {
         try {
           nftUri = await this.getNFTUri(address, tokenId)
         } catch (e) {
-          warn("Couldn't get NFT URI. (%s %s)", address, (e as any).message)
+          if (this.logging.showClassificationWarnings) {
+            warn("Couldn't get NFT URI. (%s %s)", address, (e as any).message)
+          }
         }
         if (nftUri) {
           return nftUri
@@ -609,26 +628,32 @@ export class Classification {
     const token0Address: string | undefined = await this.ethClient
       .request(call(address, token0Signature, 'address'))
       .catch(e => {
-        warn("Couldn't get token0 address from %s", address)
+        if (this.logging.showClassificationWarnings) {
+          warn("Couldn't get token0 address from %s", address)
+        }
         return undefined
       })
     if (token0Address != null) {
+      const info = (token0Address !== address) ? await contractInfo({ address: token0Address, resources }) : undefined
       token0 = {
         address: token0Address,
-        info: await contractInfo({ address: token0Address, resources })
+        info
       }
     }
     // get token 1
     const token1Address: string | undefined = await this.ethClient
       .request(call(address, token1Signature, 'address'))
       .catch(e => {
-        warn("Couldn't get token1 address from %s", address)
+        if (this.logging.showClassificationWarnings) {
+          warn("Couldn't get token1 address from %s", address)
+        }
         return undefined
       })
     if (token1Address != null) {
+      const info = (token1Address !== address) ? await contractInfo({ address: token1Address, resources }) : undefined
       token1 = {
         address: token1Address,
-        info: await contractInfo({ address: token1Address, resources })
+        info
       }
     }
     return { token0, token1 }

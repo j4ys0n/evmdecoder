@@ -1,5 +1,5 @@
 import { join as joinPath } from 'path'
-import { AbiRepositoryConfig } from '../config'
+import { AbiRepositoryConfig, LogConfigSchema } from '../config'
 import { RawLogResponse } from '../eth/responses'
 import { createModuleDebug, TRACE_ENABLED } from '@splunkdlt/debug-logging'
 import { ManagedResource } from '@splunkdlt/managed-resource'
@@ -70,7 +70,7 @@ export class AbiRepository implements ManagedResource {
   private contractsByFingerprint: Map<string, ContractAbi> = new Map()
   private contractsByAddress: Map<string, ContractAbi> = new Map()
 
-  constructor(private config: AbiRepositoryConfig) {}
+  constructor(private config: AbiRepositoryConfig, private logging: LogConfigSchema) {}
 
   private addToSignatures(sig: string, abis: AbiItemDefinition[]) {
     const match = this.signatures.get(sig)
@@ -252,7 +252,9 @@ export class AbiRepository implements ManagedResource {
         if (matchingAbis!.anonymous) {
           debug('Failed to decode anonymous ABI', e)
         } else {
-          warn('Failed to decode ABI')
+          if (this.logging.showDecodeWarnings) {
+            warn('Failed to decode ABI')
+          }
         }
       }
     }
