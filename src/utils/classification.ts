@@ -485,7 +485,7 @@ export class Classification {
     try {
       if (numProxies > initialProxies) {
         const lastProxyAddress = contractType?.proxies![contractType.proxies?.length! - 1]
-        if (lastProxyAddress.target != null) {
+        if (lastProxyAddress.target != null && lastProxyAddress.target.toLowerCase() !== address.toLowerCase()) {
           const nextCode = await this.ethClient.request(getCode(lastProxyAddress.target))
           return await this.classifyContract({ address: lastProxyAddress.target, code: nextCode, contractType })
         }
