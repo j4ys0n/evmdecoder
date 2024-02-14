@@ -115,8 +115,15 @@ export class EvmDecoder {
     await this.abiRepo.initialize()
   }
 
-  public async decodeFunctionCall({ input, address }: { input: string; address?: string }) {
-    const contractInfo = address != null ? await this.contractInfo({ address }) : undefined
+  private async _decodeFunctionCall({
+    input,
+    address,
+    contractInfo
+  }: {
+    input: string;
+    address?: string,
+    contractInfo?: ContractInfo 
+  }) {
     const decoded = this.abiRepo.decodeFunctionCall(input, {
       contractAddress: address,
       contractFingerprint: contractInfo != null ? contractInfo.fingerprint : undefined
@@ -129,6 +136,27 @@ export class EvmDecoder {
       }
     }
     return decoded
+  }
+
+  public async decodeFunctionCall({
+    input,
+    address
+  }: {
+    input: string;
+    address?: string,
+  }) {
+    const contractInfo = address != null ? await this.contractInfo({ address }) : undefined
+    const decoded = await this._decodeFunctionCall({ input, address, contractInfo })
+    return decoded
+  }
+
+  public async decodeFunctionCallV2({ input, address }: { input: string; address?: string }) {
+    const contractInfo = address != null ? await this.contractInfo({ address }) : undefined
+    const decoded = await this._decodeFunctionCall({ input, address, contractInfo })
+    return {
+      decoded,
+      contractInfo
+    }
   }
 
   public async contractInfo({ address }: { address: string }) {
