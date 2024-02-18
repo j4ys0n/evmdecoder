@@ -333,16 +333,23 @@ export class EvmDecoder {
     return formatPendingTransaction(rawTx, 'pending', undefined, addressInfo(toInfo), callInfo)
   }
 
-  public async processTransactionLog(evt: RawLogResponse | RawParityLogResponse | FormattedLogEvent): Promise<FormattedLogEvent> {
+  public async decodeLogEvent(
+    evt: RawLogResponse | RawParityLogResponse | FormattedLogEvent
+  ) {
     const eventContractInfo = await contractInfo({
       address: evt.address,
       resources: this.contractResources
     })
-
+    const contractFingerprint = eventContractInfo == null ? undefined : eventContractInfo.fingerprint
     const decodedEventData = this.abiRepo.decodeLogEvent(evt, {
       contractAddress: evt.address,
-      contractFingerprint: eventContractInfo?.fingerprint
+      contractFingerprint
     })
+    return { eventContractInfo, decodedEventData }
+  }
+
+  public async processTransactionLog(evt: RawLogResponse | RawParityLogResponse | FormattedLogEvent): Promise<FormattedLogEvent> {
+    const { eventContractInfo, decodedEventData } = await this.decodeLogEvent(evt)
     if (evt.address != null && decodedEventData != null && eventContractInfo != null) {
       try {
         const decodedExtra = await this.classification.getExtraData(
