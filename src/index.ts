@@ -4,7 +4,7 @@ import { createModuleDebug } from '@splunkdlt/debug-logging'
 import { ManagedResource } from '@splunkdlt/managed-resource'
 import { ContractInfo, ContractResources, contractInfo } from './abi/contract'
 import { DecodedFunctionCall } from './abi/decode'
-import { AbiRepository } from './abi/repo'
+import { AbiRepository, TransactionLog } from './abi/repo'
 import { Config, DeepPartial } from './config'
 import { BatchedEthereumClient, EthereumClient } from './eth/client'
 import { HttpTransport } from './eth/http'
@@ -334,15 +334,16 @@ export class EvmDecoder {
   }
 
   public async decodeLogEvent(
-    evt: RawLogResponse | RawParityLogResponse | FormattedLogEvent
+    evt: TransactionLog
   ) {
+    const { address } = evt
     const eventContractInfo = await contractInfo({
-      address: evt.address,
+      address,
       resources: this.contractResources
     })
     const contractFingerprint = eventContractInfo == null ? undefined : eventContractInfo.fingerprint
     const decodedEventData = this.abiRepo.decodeLogEvent(evt, {
-      contractAddress: evt.address,
+      contractAddress: address,
       contractFingerprint
     })
     return { eventContractInfo, decodedEventData }

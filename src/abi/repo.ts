@@ -30,6 +30,12 @@ export interface ContractAbi {
   fileName?: string
 }
 
+export interface TransactionLog {
+  address: string
+  topics: Array<string>
+  data: string
+}
+
 /** Sort abi defintions in consistent priority order */
 export function sortAbis(abis: AbiItemDefinition[]): AbiItemDefinition[] {
   if (abis.length > 1) {
@@ -267,13 +273,7 @@ export class AbiRepository implements ManagedResource {
     )
   }
 
-  public decodeLogEvent(logEvent: RawLogResponse | FormattedLogEvent, matchParams: AbiMatchParams): DecodedFunctionCall | undefined {
-    if (!Array.isArray(logEvent.topics) || logEvent.topics.length === 0) {
-      if (TRACE_ENABLED) {
-        trace('No topics in log event tx=%s idx=%s - nothing to decode', logEvent.transactionHash, logEvent.logIndex)
-      }
-      return
-    }
+  public decodeLogEvent(logEvent: TransactionLog, matchParams: AbiMatchParams): DecodedFunctionCall | undefined {
     const sigHash = logEvent.topics[0].slice(2)
     const { data, topics } = logEvent
 
