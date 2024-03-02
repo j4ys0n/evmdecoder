@@ -342,10 +342,11 @@ export class EvmDecoder {
       resources: this.contractResources
     })
     const contractFingerprint = eventContractInfo == null ? undefined : eventContractInfo.fingerprint
-    const decodedEventData = this.abiRepo.decodeLogEvent(evt, {
-      contractAddress: address,
-      contractFingerprint
-    })
+    const decodedEventData = (evt.topics != null && Array.isArray(evt.topics) && evt.topics.length > 0) 
+      ? this.abiRepo.decodeLogEvent(evt, {
+        contractAddress: address,
+        contractFingerprint
+      }) : undefined
     return { eventContractInfo, decodedEventData }
   }
 
