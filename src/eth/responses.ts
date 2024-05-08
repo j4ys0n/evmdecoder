@@ -19,7 +19,21 @@ export interface RawBlockHeaderResponse {
 export interface RawBlockResponse extends RawBlockHeaderResponse {
   totalDifficulty: string
   size: string
-  transactions: (RawTransactionResponse | string)[]
+  transactions: RawTransactionResponse[]
+  uncles: string[]
+}
+
+export interface RawBlock extends RawBlockHeaderResponse {
+  totalDifficulty: string
+  size: string
+  transactions: RawTransactionResponse[]
+  uncles: string[]
+}
+
+export interface RawBlockSlim extends RawBlockHeaderResponse {
+  totalDifficulty: string
+  size: string
+  transactions: string[]
   uncles: string[]
 }
 
@@ -37,9 +51,16 @@ export interface RawTransactionResponse {
   to: string | null
   transactionIndex: string | null
   value: string
+  type: string
+  accessList: string[] //https://eips.ethereum.org/EIPS/eip-2930
+  chainId?: string
   v: string
   r: string
   s: string
+  yParity?: string
+}
+
+export interface RawTransaction extends RawTransactionResponse {
 }
 
 export interface RawTransactionReceipt {
@@ -50,10 +71,12 @@ export interface RawTransactionReceipt {
   from: string
   to?: string
   cumulativeGasUsed: string
+  effectiveGasPrice: string
   gasUsed: string
   contractAddress?: string
   logs?: RawLogResponse[]
   status?: string
+  type: string
 }
 
 export interface RawLogResponse {
@@ -67,6 +90,15 @@ export interface RawLogResponse {
   address: string
   data: string
   topics: string[]
+}
+
+export interface RawLogEvent extends RawLogResponse {
+  id?: string
+  logIndex: string
+  blockNumber: string
+  blockHash: string
+  transactionHash: string
+  transactionIndex: string
 }
 
 export interface RawParityLogResponse {

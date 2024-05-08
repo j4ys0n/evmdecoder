@@ -10,10 +10,15 @@ import { BatchedEthereumClient, EthereumClient } from './eth/client'
 import { HttpTransport } from './eth/http'
 import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt } from './eth/requests'
 import {
+  RawBlock,
   RawBlockResponse,
+  RawBlockSlim,
+  RawLogEvent,
   RawLogResponse,
   RawParityLogResponse,
   RawParityTransactionReceipt,
+  RawTransaction,
+  RawTransactionReceipt,
   RawTransactionResponse
 } from './eth/responses'
 import { FormattedBlock, FormattedLogEvent, FormattedPendingTransaction, FormattedTransaction } from './msgs'
@@ -55,12 +60,22 @@ const DEFAULT_CONFIG: DeepPartial<Config> = {
   logging: {}
 }
 
-interface FullBlockResponse {
+export interface RawFullBlock {
+  block: RawBlockSlim
+  transactions: RawFullTransaction[]
+}
+
+export interface RawFullTransaction {
+  transaction: RawTransaction
+  receipt: RawTransactionReceipt
+}
+
+export interface FullBlockResponse {
   block: FormattedBlock
   transactions: FormattedTransactionResponse[]
 }
 
-interface FormattedTransactionResponse {
+export interface FormattedTransactionResponse {
   transaction: FormattedTransaction
   logEvents: FormattedLogEvent[]
 }
@@ -166,41 +181,109 @@ export class EvmDecoder {
     })
   }
 
-  public async getBlock(blockNumber: number): Promise<FullBlockResponse> {
+  public async getBlock(blockNumber: number, decode: boolean = true) {
     const block = await this.ethClient.request(getBlock(blockNumber))
-    return await this.processBlock(block)
+    if (decode) {
+      return this.processBlock(block)
+    }
+    return block as RawBlock
   }
 
-  public async getBlocks(blockNumbers: number[]): Promise<FullBlockResponse[]> {
+  public async getFullBlock(blockNumber: number, decode: boolean = true) {
+    const block = await this.ethClient.request(getBlock(blockNumber))
+    if (decode) {
+      return this.processBlock(block)
+    }
+    return this.processRawBlock(block)
+  }
+
+  private async processRawBlock(block: RawBlockResponse | RawBlock) {
+    // const uncles = await this.ethClient.requestBatch()
+    // last uncle block https://etherscan.io/uncle/0xf4af15465ca81e65866c6e64cbc446b735a06fb2118dda69a7c21d4ab0b1e217
+    const allReceipts = await this.ethClient.requestBatch(
+      block.transactions.map(txn =>
+        typeof txn === 'string' ? getTransactionReceipt(txn) : getTransactionReceipt(txn.hash)
+      )
+    )
+    const receiptMap = allReceipts.reduce((map, receipt) => {
+      map[receipt.transactionHash] = receipt
+      return map
+    }, <{ [key: string]: RawTransactionReceipt }>{})
+
+    const { transactions: txns, ...remainingBlockProps } = block
+    const rawBlockSlim: RawBlockSlim = {
+      ...remainingBlockProps,
+      transactions: txns.map(txn => {
+        if (typeof txn === 'string') {
+          return txn
+        }
+        return txn.hash
+      })
+    }
+    const rawFullBlock: RawFullBlock = {
+      block: rawBlockSlim,
+      transactions: txns.map((transaction: RawTransaction) => ({
+        transaction,
+        receipt: receiptMap[transaction.hash] ?? undefined
+      }))
+    }
+    return rawFullBlock
+  }
+
+  public async getBlocks(blockNumbers: number[], decode: boolean = true) {
     const blocks = await this.ethClient
       .requestBatch(blockNumbers.map(blockNumber => getBlock(blockNumber)))
       .catch(e =>
         Promise.reject(new Error(`Failed to request batch of blocks ${blockNumbers.join(', ')}: ${e}`))
       )
-
-    return await Promise.all(blocks.map(b => this.processBlock(b)))
+    if (decode) {
+      return Promise.all(blocks.map(b => this.processBlock(b)))
+    }
+    return blocks as RawBlock[]
   }
 
-  public async getPendingTransaction(hash: string): Promise<FormattedPendingTransaction | undefined> {
+  public async getFullBlocks(blockNumbers: number[], decode: boolean = true) {
+    if (decode) {
+      return this.getBlocks(blockNumbers, true) as Promise<FullBlockResponse[]>
+    }
+    const blocks = await this.getBlocks(blockNumbers, false)
+    const fullBlocks: RawFullBlock[] = []
+    for (const b of blocks) {
+      const block = await this.processRawBlock(b as RawBlock)
+      fullBlocks.push(block)
+    }
+    return fullBlocks
+  }
+
+  public async getPendingTransaction(hash: string, decode: boolean = true) {
     try {
       const transaction = await this.ethClient.request(getTransaction(hash), { ignoreErrors: true })
-      return await this.processPendingTransaction(transaction)
+      if (decode) {
+        return this.processPendingTransaction(transaction)
+      }
+      return transaction
     } catch (e) {
       return undefined
     }
   }
 
-  public async getTransaction(hash: string): Promise<FormattedTransactionResponse> {
+  public async getTransaction(hash: string, decode: boolean = true) {
     const transaction = await this.ethClient.request(getTransaction(hash))
-    return await this.processTransaction(transaction, true)
+    if (decode) {
+      return this.processTransaction(transaction, true)
+    }
+    return transaction as RawTransaction
   }
 
-  public async getTransactionReceipt(hash: string): Promise<FormattedLogEvent[]> {
+  public async getTransactionReceipt(hash: string, decode: boolean = true) {
     const receipt = await this.ethClient.request(getTransactionReceipt(hash))
-    if (receipt) {
-      return await Promise.all(
+    if (receipt && decode) {
+      return Promise.all(
         receipt?.logs?.map((l: RawLogResponse | RawParityLogResponse) => this.processTransactionLog(l)) ?? []
       )
+    }
+    if (receipt) {
+      return receipt
     }
     return []
   }
@@ -248,9 +331,9 @@ export class EvmDecoder {
     }
   }
 
-  private async processTransaction(
-    rawTx: RawTransactionResponse | string,
-    individualReceipts: boolean,
+  public async processTransaction(
+    rawTx: RawTransactionResponse | RawTransaction | string,
+    fetchReceipts: boolean,
     rawReceipt: RawParityTransactionReceipt | undefined = undefined
   ): Promise<FormattedTransactionResponse> {
     if (typeof rawTx === 'string') {
@@ -259,7 +342,7 @@ export class EvmDecoder {
     }
 
     const [receipt, toInfo, fromInfo] = await Promise.all([
-      individualReceipts ? this.ethClient.request(getTransactionReceipt(rawTx.hash)) : rawReceipt,
+      fetchReceipts ? this.ethClient.request(getTransactionReceipt(rawTx.hash)) : rawReceipt,
       rawTx.to != null
         ? contractInfo({
             address: rawTx.to,
@@ -309,7 +392,7 @@ export class EvmDecoder {
     }
   }
 
-  private async processPendingTransaction(
+  public async processPendingTransaction(
     rawTx: RawTransactionResponse | string
   ): Promise<FormattedPendingTransaction> {
     if (typeof rawTx === 'string') {
