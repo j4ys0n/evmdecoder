@@ -8,7 +8,7 @@ import { AbiRepository, TransactionLog } from './abi/repo'
 import { Config, DeepPartial } from './config'
 import { BatchedEthereumClient, EthereumClient } from './eth/client'
 import { HttpTransport } from './eth/http'
-import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt } from './eth/requests'
+import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt, blockNumber } from './eth/requests'
 import {
   RawBlock,
   RawBlockResponse,
@@ -448,6 +448,10 @@ export class EvmDecoder {
       }
     }
     return formatLogEvent(evt, addressInfo(eventContractInfo), decodedEventData)
+  }
+
+  public async getLatestBlockNumber(): Promise<number> {
+    return this.ethClient.request(blockNumber())
   }
 
   private addResource<R extends ManagedResource>(r: R): R {
