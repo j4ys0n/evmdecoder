@@ -4,7 +4,8 @@ import {
   RawLogResponse,
   RawTransactionReceipt,
   RawTransactionResponse,
-  RawParityLogResponse
+  RawParityLogResponse,
+  RawBlockSlim
 } from '../eth/responses'
 import {
   AddressInfo,
@@ -33,7 +34,7 @@ export function parseBlockTime(timestamp: number | string): number {
   throw new Error(`Unable to parse block timestamp "${timestamp}"`)
 }
 
-export function formatBlock(rawBlock: RawBlockResponse): FormattedBlock {
+export function formatBlock(rawBlock: RawBlockResponse | RawBlockSlim): FormattedBlock {
   return {
     timestamp: parseBigInt(rawBlock.timestamp),
     number: rawBlock.number != null ? bigIntToNumber(rawBlock.number) : null,
@@ -53,7 +54,8 @@ export function formatBlock(rawBlock: RawBlockResponse): FormattedBlock {
     totalDifficulty: parseBigInt(rawBlock.totalDifficulty),
     size: bigIntToNumber(rawBlock.size),
     uncles: rawBlock.uncles,
-    transactionCount: rawBlock.transactions == null ? 0 : rawBlock.transactions.length
+    transactionCount: rawBlock.transactions == null ? 0 : rawBlock.transactions.length,
+    transactions: rawBlock.transactions == null ? [] : rawBlock.transactions.map(txn => (typeof txn === 'string') ? txn : txn.hash)
   }
 }
 

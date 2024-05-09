@@ -70,6 +70,11 @@ export interface RawFullTransaction {
   receipt: RawTransactionReceipt
 }
 
+function isRawFullBlock(b: unknown): b is RawFullBlock {
+  const rfb = b as RawFullBlock
+  return (rfb.block != null && rfb.transactions != null)
+}
+
 export interface FullBlockResponse {
   block: FormattedBlock
   transactions: FormattedTransactionResponse[]
@@ -194,10 +199,10 @@ export class EvmDecoder {
     if (decode) {
       return this.processBlock(block)
     }
-    return this.processRawBlock(block)
+    return this.processRawFullBlock(block)
   }
 
-  private async processRawBlock(block: RawBlockResponse | RawBlock) {
+  private async processRawFullBlock(block: RawBlockResponse | RawBlock) {
     // const uncles = await this.ethClient.requestBatch()
     // last uncle block https://etherscan.io/uncle/0xf4af15465ca81e65866c6e64cbc446b735a06fb2118dda69a7c21d4ab0b1e217
     const allReceipts = await this.ethClient.requestBatch(
@@ -249,7 +254,7 @@ export class EvmDecoder {
     const blocks = await this.getBlocks(blockNumbers, false)
     const fullBlocks: RawFullBlock[] = []
     for (const b of blocks) {
-      const block = await this.processRawBlock(b as RawBlock)
+      const block = await this.processRawFullBlock(b as RawBlock)
       fullBlocks.push(block)
     }
     return fullBlocks
@@ -288,7 +293,7 @@ export class EvmDecoder {
     return []
   }
 
-  private async processBlock(rawBlock: RawBlockResponse): Promise<FullBlockResponse> {
+  private async processRawBlock(rawBlock: RawBlockResponse | RawBlock) {
     const block = formatBlock(rawBlock)
     let receipts: RawParityTransactionReceipt[] = []
     let individualReceipts = this.config.eth.client.individualReceipts
@@ -331,10 +336,37 @@ export class EvmDecoder {
     }
   }
 
+  public processRawFullTransaction(txn: RawFullTransaction) {
+    const { transaction: rawTransaction, receipt } = txn
+    return this.processTransaction(rawTransaction, false, receipt)
+  }
+
+  private async processRawBlockWithTransactions(rawFullBlock: RawFullBlock) {
+    const { block: rawBlock, transactions: rawTransactions } = rawFullBlock
+    const block = formatBlock(rawBlock)
+    const transactions: FormattedTransactionResponse[] = []
+    for (const rawTxn of rawTransactions) {
+      const transaction = await this.processRawFullTransaction(rawTxn)
+      transactions.push(transaction)
+    }
+    return {
+      block,
+      transactions
+    }
+  }
+
+  private async processBlock(rawBlock: RawBlockResponse | RawFullBlock): Promise<FullBlockResponse> {
+    if (isRawFullBlock(rawBlock)) {
+      return this.processRawBlockWithTransactions(rawBlock)
+    } else {
+      return this.processRawBlock(rawBlock)
+    }
+  }
+
   public async processTransaction(
     rawTx: RawTransactionResponse | RawTransaction | string,
     fetchReceipts: boolean,
-    rawReceipt: RawParityTransactionReceipt | undefined = undefined
+    rawReceipt: RawParityTransactionReceipt | RawTransactionReceipt | undefined = undefined
   ): Promise<FormattedTransactionResponse> {
     if (typeof rawTx === 'string') {
       warn('Received raw transaction %s from block %d')
