@@ -48,6 +48,8 @@ export interface FormattedBlock {
 
   /** number of transactions in this block */
   transactionCount: number
+  // transaction hashes
+  transactions: string[]
 }
 
 export interface BlockMessage {
@@ -83,7 +85,8 @@ export interface BaseFormattedTransaction {
   r: string
   /** ECDSA signature s */
   s: string
-
+  accessList?: string[]
+  yParity?: string // Parity (0x0 for even, 0x1 for odd) of the y-value of a secp256k1 signature
   // additional info
 
   /** Information about the recipient address of the transaction */
