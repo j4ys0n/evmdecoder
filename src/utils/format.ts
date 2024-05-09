@@ -55,7 +55,12 @@ export function formatBlock(rawBlock: RawBlockResponse | RawBlockSlim): Formatte
     size: bigIntToNumber(rawBlock.size),
     uncles: rawBlock.uncles,
     transactionCount: rawBlock.transactions == null ? 0 : rawBlock.transactions.length,
-    transactions: rawBlock.transactions == null ? [] : rawBlock.transactions.map(txn => (typeof txn === 'string') ? txn : txn.hash)
+    transactions: <string[]>(
+      (rawBlock.transactions == null
+        ? []
+        //@ts-ignore
+        : rawBlock.transactions.map(txn => (typeof txn === 'string' ? txn : txn.hash)))
+    )
   }
 }
 

@@ -344,18 +344,16 @@ export class EvmDecoder {
   private async processRawBlockWithTransactions(rawFullBlock: RawFullBlock) {
     const { block: rawBlock, transactions: rawTransactions } = rawFullBlock
     const block = formatBlock(rawBlock)
-    const transactions: FormattedTransactionResponse[] = []
-    for (const rawTxn of rawTransactions) {
-      const transaction = await this.processRawFullTransaction(rawTxn)
-      transactions.push(transaction)
-    }
+    const transactions = await this.abortHandle.race(
+      Promise.all(rawTransactions.map(rawTxn => this.processRawFullTransaction(rawTxn)))
+    )
     return {
       block,
       transactions
     }
   }
 
-  private async processBlock(rawBlock: RawBlockResponse | RawFullBlock): Promise<FullBlockResponse> {
+  public async processBlock(rawBlock: RawBlockResponse | RawFullBlock): Promise<FullBlockResponse> {
     if (isRawFullBlock(rawBlock)) {
       return this.processRawBlockWithTransactions(rawBlock)
     } else {
@@ -411,10 +409,11 @@ export class EvmDecoder {
       callInfo
     )
 
-    const logEvents =
+    const logEvents: FormattedLogEvent[] =
       toInfo && toInfo.isContract
         ? await Promise.all(
-            receipt?.logs?.map((l: RawLogResponse | RawParityLogResponse) => this.processTransactionLog(l)) ?? []
+            //@ts-ignore
+            this.getLogs(receipt).map((l: RawLogResponse | RawParityLogResponse) => this.processTransactionLog(l)) ?? []
           )
         : []
 
@@ -422,6 +421,13 @@ export class EvmDecoder {
       transaction,
       logEvents
     }
+  }
+
+  private getLogs(receipt?: RawTransactionReceipt | RawParityTransactionReceipt) {
+    if (receipt == null || receipt.logs == null) {
+      return []
+    }
+    return receipt.logs ?? []
   }
 
   public async processPendingTransaction(
