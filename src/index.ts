@@ -317,7 +317,7 @@ export class EvmDecoder {
       }
     }
 
-    const transactions = await this.abortHandle.race(
+    const transactions = rawBlock.transactions.length === 0 ? [] : await this.abortHandle.race(
       Promise.all(
         rawBlock.transactions.map(tx =>
           this.processTransaction(
@@ -344,7 +344,7 @@ export class EvmDecoder {
   private async processRawBlockWithTransactions(rawFullBlock: RawFullBlock) {
     const { block: rawBlock, transactions: rawTransactions } = rawFullBlock
     const block = formatBlock(rawBlock)
-    const transactions = await this.abortHandle.race(
+    const transactions = rawTransactions.length === 0 ? [] : await this.abortHandle.race(
       Promise.all(rawTransactions.map(rawTxn => this.processRawFullTransaction(rawTxn)))
     )
     return {
