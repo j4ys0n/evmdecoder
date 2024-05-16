@@ -18,44 +18,46 @@ export async function executeBatchRequest(
   waitAfterFailure = linearBackoff({ min: 0, step: 2500, max: 120_000 })
 ) {
   debug('Processing batch of %d JSON RPC requests', batch.length)
-  try {
-    const items = new Map<number, BatchReq>()
-    const reqs: JsonRpcRequest[] = []
-    for (const batchItem of batch) {
-      const req = createJsonRpcPayload(batchItem.request.method, batchItem.request.params)
-      reqs.push(req)
-      items.set(req.id, batchItem)
-    }
-    // const results = await transport.sendBatch(reqs);
-    const results = await retry(() => transport.sendBatch(reqs), {
-      attempts: 100,
-      waitBetween: waitAfterFailure,
-      taskName: `eth api batch request`,
-      abortHandle: abortHandle,
-      warnOnError: true,
-      onError: e => {
-        info('client batch request error: %s', e.toString())
-        debug('requests: %s', reqs.toString())
-      },
-      onRetry: attempt => warn('Retrying eth api batch request (attempt %d)', attempt)
-    })
-    for (const result of results) {
-      const batchItem = items.get(result.id)
-      if (batchItem == null) {
-        error(`Found unassociated batch item in batch response`)
-        continue
+  if (batch.length > 0) {
+    try {
+      const items = new Map<number, BatchReq>()
+      const reqs: JsonRpcRequest[] = []
+      for (const batchItem of batch) {
+        const req = createJsonRpcPayload(batchItem.request.method, batchItem.request.params)
+        reqs.push(req)
+        items.set(req.id, batchItem)
       }
-      batchItem.callback(null, result)
-      items.delete(result.id)
-    }
-    if (items.size > 0) {
-      error(`Unprocessed batch request after receiving results`)
-      for (const unprocessed of items.values()) {
-        unprocessed.callback(new Error('Result missing from batch response'), null)
+      
+      const results = await retry(() => transport.sendBatch(reqs), {
+        attempts: 100,
+        waitBetween: waitAfterFailure,
+        taskName: `eth api batch request`,
+        abortHandle: abortHandle,
+        warnOnError: true,
+        onError: e => {
+          info('client batch request error: %s', e.toString())
+          debug('requests: %s', reqs.toString())
+        },
+        onRetry: attempt => warn('Retrying eth api batch request (attempt %d)', attempt)
+      })
+      for (const result of results) {
+        const batchItem = items.get(result.id)
+        if (batchItem == null) {
+          error(`Found unassociated batch item in batch response`)
+          continue
+        }
+        batchItem.callback(null, result)
+        items.delete(result.id)
       }
+      if (items.size > 0) {
+        error(`Unprocessed batch request after receiving results`)
+        for (const unprocessed of items.values()) {
+          unprocessed.callback(new Error('Result missing from batch response'), null)
+        }
+      }
+    } catch (e) {
+      batch.forEach(({ callback }) => callback(e as any, null))
     }
-  } catch (e) {
-    batch.forEach(({ callback }) => callback(e as any, null))
   }
 }
 
