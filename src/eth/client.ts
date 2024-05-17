@@ -1,14 +1,57 @@
 import { AbortHandle, sleep, linearBackoff, retry } from '@splunkdlt/async-tasks'
 import { createModuleDebug } from '@splunkdlt/debug-logging'
-import { checkError, createJsonRpcPayload, JsonRpcError, JsonRpcRequest } from './jsonrpc'
+import { checkError, createJsonRpcPayload, JsonRpcError, JsonRpcRequest, JsonRpcResponse } from './jsonrpc'
 import { EthRequest } from './requests'
 import { EthereumTransport } from './transport'
+import { RuntimeError } from '../utils/error'
+import { chunkArray } from '../utils/obj'
 
 const { info, debug, warn, error } = createModuleDebug('eth:client')
 
 interface BatchReq<P extends any[] = any[], R = any> {
   request: EthRequest<P, R>
   callback: (error: Error | null, result: R) => void
+}
+
+async function batchRequestWithFailover(
+  reqs: JsonRpcRequest[],
+  transport: EthereumTransport,
+  splits: number = 1 // 1 is no split
+) {
+  if (splits < 1) {
+    throw new RuntimeError(`batch request splits can't be less than 1`)
+  }
+  const maxSplits = 10
+  if (splits <= maxSplits) {
+    // try to send the batch
+    const chunkSize = Math.ceil(reqs.length / splits)
+    const reqChunks = chunkArray(reqs, chunkSize)
+    // if it fails, split the batch and try again
+    try {
+      const responses: JsonRpcResponse[] = []
+      for (const chunk of reqChunks) {
+        const chunkResponses = await transport.sendBatch(chunk)
+        for (const response of chunkResponses) {
+          responses.push(response)
+        }
+        return responses
+      }
+    } catch (e: any) {
+      const error: String = e.toString()
+      const retryable = ['Socket timeout', 'too large', 'too big']
+      let retry = false
+      for (const retryableError of retryable) {
+        if (error.includes(retryableError)) {
+          retry = true
+        }
+      }
+      if (retry) {
+        return batchRequestWithFailover(reqs, transport, splits + 1)
+      }
+      return Promise.reject(e)
+    }
+  }
+  throw new RuntimeError('Too many batch splits')
 }
 
 export async function executeBatchRequest(
@@ -28,8 +71,8 @@ export async function executeBatchRequest(
         items.set(req.id, batchItem)
       }
       
-      const results = await retry(() => transport.sendBatch(reqs), {
-        attempts: 100,
+      const results = await retry(() => batchRequestWithFailover(reqs, transport), {
+        attempts: 10,
         waitBetween: waitAfterFailure,
         taskName: `eth api batch request`,
         abortHandle: abortHandle,

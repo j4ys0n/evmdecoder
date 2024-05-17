@@ -33,3 +33,13 @@ export function deepMerge<T extends { [k: string]: any }>(a: T, b: T): T {
 export function isEmpty(obj: object): boolean {
   return obj == null || Object.values(obj).filter(v => v != null).length === 0
 }
+
+export function chunkArray<T>(data: T[], chunkSize: number): T[][] {
+  const chunkCount = Math.ceil(data.length / chunkSize)
+  const chunks: any[][] = []
+  for (let i = 0; i < chunkCount; i++) {
+    const chunk = data.splice(0, chunkSize)
+    chunks.push(chunk)
+  }
+  return chunks
+}
