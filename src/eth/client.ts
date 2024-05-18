@@ -82,7 +82,7 @@ export async function executeBatchRequest(
       const reqs = new Map<number, JsonRpcRequest>() 
       for (const batchItem of batch) {
         const { method, params } = batchItem.request
-        const hash = params == null ? md5({ method }) : md5({ method, params })
+        const hash = params == null ? md5({ method, params: [] }) : md5({ method, params })
         if (!unique.has(hash)) {
           const req = createJsonRpcPayload(method, params)
           unique.set(hash, batchItem)
@@ -111,7 +111,7 @@ export async function executeBatchRequest(
           continue
         }
         const { method, params } = req
-        const hash = params == null ? md5({ method }) : md5({ method, params })
+        const hash = params == null ? md5({ method, params: [] }) : md5({ method, params })
         resultsByHash.set(hash, result)
         reqs.delete(result.id)
       }
@@ -127,7 +127,7 @@ export async function executeBatchRequest(
         const result = resultsByHash.get(hash)
         if (result == null) {
           missingItems.push(batchItem)
-          info(JSON.stringify(req, null, 2))
+          debug(JSON.stringify(req))
           error(`expected response not found`)
           continue
         }
@@ -136,7 +136,7 @@ export async function executeBatchRequest(
       if (reqs.size > 0) {
         error(`Unprocessed batch request after receiving results`)
         // dump unprocessed batch items
-        console.log(JSON.stringify(Array.from(reqs.entries()), null, 2))
+        console.log(JSON.stringify(Array.from(reqs.entries())))
       }
       if (missingItems.length > 0) {
         error(`Unprocessed batch request after receiving results`)
