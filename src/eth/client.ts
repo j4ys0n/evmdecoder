@@ -127,6 +127,7 @@ export async function executeBatchRequest(
         const result = resultsByHash.get(hash)
         if (result == null) {
           missingItems.push(batchItem)
+          info(JSON.stringify(req, null, 2))
           error(`expected response not found`)
           continue
         }
