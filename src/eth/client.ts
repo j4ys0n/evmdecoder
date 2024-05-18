@@ -82,7 +82,7 @@ export async function executeBatchRequest(
       const reqs = new Map<number, JsonRpcRequest>() 
       for (const batchItem of batch) {
         const { method, params } = batchItem.request
-        const hash = md5({ method, params })
+        const hash = params == null ? md5({ method }) : md5({ method, params })
         if (!unique.has(hash)) {
           const req = createJsonRpcPayload(method, params)
           unique.set(hash, batchItem)
@@ -111,7 +111,7 @@ export async function executeBatchRequest(
           continue
         }
         const { method, params } = req
-        const hash = md5({ method, params })
+        const hash = params == null ? md5({ method }) : md5({ method, params })
         resultsByHash.set(hash, result)
         reqs.delete(result.id)
       }
