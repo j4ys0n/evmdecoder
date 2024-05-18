@@ -99,7 +99,7 @@ export async function executeBatchRequest(
       if (items.size > 0) {
         error(`Unprocessed batch request after receiving results`)
         // dump unprocessed batch items
-        console.log(JSON.stringify(items, null, 2))
+        console.log(JSON.stringify(Array.from(items.entries()), null, 2))
         for (const unprocessed of items.values()) {
           unprocessed.callback(new Error('Result missing from batch response'), null)
         }
