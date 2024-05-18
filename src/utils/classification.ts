@@ -189,7 +189,7 @@ export class Classification {
   private ethClient: EthereumClient
   private abiRepo: AbiRepository
   private contractInfoCache: LRUCache<string, Promise<ContractInfo>>
-  private contractIgnoreCache: LRUCache<string, boolean> = new LRUCache<string, boolean>({ maxSize: 10_000 })
+  public contractIgnoreCache: LRUCache<string, boolean> = new LRUCache<string, boolean>({ maxSize: 10_000 })
 
   constructor({ ethClient, abiRepo, contractInfoCache }: ClassificationResources, private logging: LogConfigSchema) {
     this.ethClient = ethClient

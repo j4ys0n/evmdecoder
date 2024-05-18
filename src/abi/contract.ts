@@ -181,6 +181,7 @@ async function getContractProperties(
         const properties = await classification.getContractProperties(target, contractType)
         return properties
       } catch (e) {
+        classification.contractIgnoreCache.set(target, true)
         warn(`Couldn't get properties %s (%s)`, target, (e as any).message)
       }
     }
