@@ -189,6 +189,7 @@ export class Classification {
   private ethClient: EthereumClient
   private abiRepo: AbiRepository
   private contractInfoCache: LRUCache<string, Promise<ContractInfo>>
+  private contractIgnoreCache: LRUCache<string, boolean> = new LRUCache<string, boolean>({ maxSize: 10_000 })
 
   constructor({ ethClient, abiRepo, contractInfoCache }: ClassificationResources, private logging: LogConfigSchema) {
     this.ethClient = ethClient
@@ -663,6 +664,10 @@ export class Classification {
     address: string,
     contractType: ContractType
   ): Promise<Partial<ContractProperties> | undefined> {
+    const ignore = this.contractIgnoreCache.get(address)
+    if (ignore) {
+      return undefined
+    }
     const response: { [key: string]: any } = {
       type: ''
     }
@@ -720,6 +725,7 @@ export class Classification {
       response.token1 = token1
     }
     if (Object.keys(response).length === 1 && response.type === '') {
+      this.contractIgnoreCache.set(address, true)
       return undefined
     }
     return response

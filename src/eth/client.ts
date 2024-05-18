@@ -37,8 +37,8 @@ async function batchRequestWithFailover(
         for (const response of chunkResponses) {
           responses.push(response)
         }
-        return responses
       }
+      return responses
     } catch (e) {
       const error: String = (e as any).toString()
       info('client batch request error: %s', error)
