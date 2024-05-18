@@ -1,5 +1,6 @@
 import { AbortHandle, sleep, linearBackoff, retry } from '@splunkdlt/async-tasks'
 import { createModuleDebug } from '@splunkdlt/debug-logging'
+import crypto from 'crypto'
 import { checkError, createJsonRpcPayload, JsonRpcError, JsonRpcRequest, JsonRpcResponse } from './jsonrpc'
 import { EthRequest } from './requests'
 import { EthereumTransport } from './transport'
@@ -58,6 +59,14 @@ async function batchRequestWithFailover(
   throw new RuntimeError('Too many batch splits')
 }
 
+export function md5(data: Object | string): string {
+  const stringValue = typeof data === 'string' ? data : JSON.stringify(data)
+  return crypto
+    .createHash('md5')
+    .update(stringValue)
+    .digest('hex')
+}
+
 export async function executeBatchRequest(
   batch: BatchReq[],
   transport: EthereumTransport,
@@ -67,15 +76,22 @@ export async function executeBatchRequest(
   debug('Processing batch of %d JSON RPC requests', batch.length)
   if (batch.length > 0) {
     try {
-      const items = new Map<number, BatchReq>()
-      const reqs: JsonRpcRequest[] = []
+      // const items = new Map<string, BatchReq>()
+      const reqOrder: { hash: string, batchItem: BatchReq }[] = []
+      const unique = new Map<string, BatchReq>()
+      const reqs = new Map<number, JsonRpcRequest>() 
       for (const batchItem of batch) {
-        const req = createJsonRpcPayload(batchItem.request.method, batchItem.request.params)
-        reqs.push(req)
-        items.set(req.id, batchItem)
+        const { method, params } = batchItem.request
+        const hash = md5({ method, params })
+        if (!unique.has(hash)) {
+          const req = createJsonRpcPayload(method, params)
+          unique.set(hash, batchItem)
+          reqs.set(req.id, req)
+        }
+        reqOrder.push({ hash, batchItem })
       }
       
-      const results: JsonRpcResponse[] = await retry(() => batchRequestWithFailover(reqs, transport), {
+      const results: JsonRpcResponse[] = await retry(() => batchRequestWithFailover(Array.from(reqs.values()), transport), {
         attempts: 10,
         waitBetween: waitAfterFailure,
         taskName: `eth api batch request`,
@@ -83,24 +99,47 @@ export async function executeBatchRequest(
         warnOnError: true,
         onError: e => {
           info('client batch request error: %s', e.toString())
-          debug('requests: %s', reqs.toString())
+          debug('requests: %s', Array.from(reqs.values().toString()))
         },
         onRetry: attempt => warn('Retrying eth api batch request (attempt %d)', attempt)
       })
+      const resultsByHash = new Map<string, JsonRpcResponse>()
       for (const result of results) {
-        const batchItem = items.get(result.id)
-        if (batchItem == null) {
+        const req = reqs.get(result.id)
+        if (req == null) {
           error(`Found unassociated batch item in batch response`)
           continue
         }
-        batchItem.callback(null, result)
-        items.delete(result.id)
+        const { method, params } = req
+        const hash = md5({ method, params })
+        resultsByHash.set(hash, result)
+        reqs.delete(result.id)
       }
-      if (items.size > 0) {
+      const reqLength = reqOrder.length
+      const missingItems: BatchReq[] = [] 
+      for (let i = 0; i < reqLength; i++) {
+        const req = reqOrder.shift()
+        if (req == null) {
+          error(`error processing batch requests`)
+          continue
+        }
+        const { hash, batchItem } = req
+        const result = resultsByHash.get(hash)
+        if (result == null) {
+          missingItems.push(batchItem)
+          error(`expected response not found`)
+          continue
+        }
+        batchItem.callback(null, result)
+      }
+      if (reqs.size > 0) {
         error(`Unprocessed batch request after receiving results`)
         // dump unprocessed batch items
-        console.log(JSON.stringify(Array.from(items.entries()), null, 2))
-        for (const unprocessed of items.values()) {
+        console.log(JSON.stringify(Array.from(reqs.entries()), null, 2))
+      }
+      if (missingItems.length > 0) {
+        error(`Unprocessed batch request after receiving results`)
+        for (const unprocessed of missingItems) {
           unprocessed.callback(new Error('Result missing from batch response'), null)
         }
       }
