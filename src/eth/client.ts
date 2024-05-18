@@ -23,6 +23,9 @@ async function batchRequestWithFailover(
   }
   const maxSplits = 10
   if (splits <= maxSplits) {
+    if (splits > 1) {
+      warn('Splitting batch into %d chunks', splits)
+    }
     // try to send the batch
     const chunkSize = Math.ceil(reqs.length / splits)
     const reqChunks = chunkArray(reqs, chunkSize)
@@ -38,6 +41,7 @@ async function batchRequestWithFailover(
       }
     } catch (e: any) {
       const error: String = e.toString()
+      info('client batch request error: %s', error)
       const retryable = ['Socket timeout', 'too large', 'too big']
       let retry = false
       for (const retryableError of retryable) {
