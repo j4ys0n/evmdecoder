@@ -17,7 +17,7 @@ async function batchRequestWithFailover(
   reqs: JsonRpcRequest[],
   transport: EthereumTransport,
   splits: number = 1 // 1 is no split
-) {
+): Promise<JsonRpcResponse[]> {
   if (splits < 1) {
     throw new RuntimeError(`batch request splits can't be less than 1`)
   }
@@ -39,8 +39,8 @@ async function batchRequestWithFailover(
         }
         return responses
       }
-    } catch (e: any) {
-      const error: String = e.toString()
+    } catch (e) {
+      const error: String = (e as any).toString()
       info('client batch request error: %s', error)
       const retryable = ['Socket timeout', 'too large', 'too big']
       let retry = false
@@ -75,7 +75,7 @@ export async function executeBatchRequest(
         items.set(req.id, batchItem)
       }
       
-      const results = await retry(() => batchRequestWithFailover(reqs, transport), {
+      const results: JsonRpcResponse[] = await retry(() => batchRequestWithFailover(reqs, transport), {
         attempts: 10,
         waitBetween: waitAfterFailure,
         taskName: `eth api batch request`,
