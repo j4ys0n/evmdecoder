@@ -1,7 +1,7 @@
 {
   "name": "evmdecoder",
   "description": "Library to decode EVM contract data.",
-  "version": "0.0.39",
+  "version": "0.0.40",
   "contributors": [
     "Splunk",
     "Jayson Jacobs"
