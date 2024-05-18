@@ -71,7 +71,8 @@ export async function executeBatchRequest(
   batch: BatchReq[],
   transport: EthereumTransport,
   abortHandle: AbortHandle,
-  waitAfterFailure = linearBackoff({ min: 0, step: 2500, max: 120_000 })
+  waitAfterFailure = linearBackoff({ min: 0, step: 2500, max: 120_000 }),
+  attempt = 1
 ) {
   debug('Processing batch of %d JSON RPC requests', batch.length)
   if (batch.length > 0) {
@@ -139,9 +140,15 @@ export async function executeBatchRequest(
         console.log(JSON.stringify(Array.from(reqs.entries())))
       }
       if (missingItems.length > 0) {
-        error(`Unprocessed batch request after receiving results`)
-        for (const unprocessed of missingItems) {
-          unprocessed.callback(new Error('Result missing from batch response'), null)
+        if (attempt <= 5) {
+          warn(`Unprocessed batch request after receiving results`)
+          warn(`Retrying batch request (attempt ${attempt})`)
+          executeBatchRequest(missingItems, transport, abortHandle, waitAfterFailure, attempt + 1)
+        } else {
+          error(`Unprocessed batch request after receiving results`)
+          for (const unprocessed of missingItems) {
+            unprocessed.callback(new Error('Result missing from batch response'), null)
+          }
         }
       }
     } catch (e) {
