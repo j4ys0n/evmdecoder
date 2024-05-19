@@ -82,6 +82,7 @@ async function handleRpcResults(
   results: JsonRpcResponse[],
   reqs: Map<number, JsonRpcRequest>,
   reqOrder: { hash: string; batchItem: BatchReq }[],
+  unique: Map<string, JsonRpcRequest>,
   transport: EthereumTransport,
   attempt: number,
   maxAttempts: number
@@ -129,11 +130,15 @@ async function handleRpcResults(
       const missingRequests: JsonRpcRequest[] = []
       for (const missing of missingItems) {
         const { method, params } = missing.request
-        const req = createJsonRpcPayload(method, params)
+        const hash = params == null ? md5({ method, params: [] }) : md5({ method, params })
+        const req = unique.get(hash)
+        if (req == null) {
+          throw new RuntimeError('Request should not be missing from unique requests map')
+        }
         missingRequests.push(req)
       }
       const singleResults = await singleRequests(transport, missingRequests)
-      await handleRpcResults(singleResults, reqs, reqOrder, transport, attempt + 1, maxAttempts)
+      await handleRpcResults(singleResults, reqs, reqOrder, unique, transport, attempt + 1, maxAttempts)
     } else {
       error(`Unprocessed batch request after receiving results`)
       for (const unprocessed of missingItems) {
@@ -156,14 +161,14 @@ export async function executeBatchRequest(
     try {
       // const items = new Map<string, BatchReq>()
       const reqOrder: { hash: string, batchItem: BatchReq }[] = []
-      const unique = new Map<string, BatchReq>()
+      const unique = new Map<string, JsonRpcRequest>()
       const reqs = new Map<number, JsonRpcRequest>() 
       for (const batchItem of batch) {
         const { method, params } = batchItem.request
         const hash = params == null ? md5({ method, params: [] }) : md5({ method, params })
         if (!unique.has(hash)) {
           const req = createJsonRpcPayload(method, params)
-          unique.set(hash, batchItem)
+          unique.set(hash, req)
           reqs.set(req.id, req)
         }
         reqOrder.push({ hash, batchItem })
@@ -181,7 +186,7 @@ export async function executeBatchRequest(
         },
         onRetry: attempt => warn('Retrying eth api batch request (attempt %d)', attempt)
       })
-      await handleRpcResults(results, reqs, reqOrder, transport, attempt, maxAttempts)
+      await handleRpcResults(results, reqs, reqOrder, unique, transport, attempt, maxAttempts)
     } catch (e) {
       batch.forEach(({ callback }) => callback(e as any, null))
     }
