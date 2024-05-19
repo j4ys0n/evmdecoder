@@ -68,7 +68,7 @@ export function md5(data: Object | string): string {
 }
 
 async function singleRequests(transport: EthereumTransport, reqs: JsonRpcRequest[]): Promise<JsonRpcResponse[]> {
-  const concurrent = 5
+  const concurrent = 1
   const chunks = chunkArray(reqs, concurrent)
   const responses: JsonRpcResponse[] = []
   for (const chunk of chunks) {
@@ -83,11 +83,11 @@ async function handleRpcResults(
   reqs: Map<number, JsonRpcRequest>,
   reqOrder: { hash: string; batchItem: BatchReq }[],
   unique: Map<string, JsonRpcRequest>,
+  resultsByHash: Map<string, JsonRpcResponse>,
   transport: EthereumTransport,
   attempt: number,
   maxAttempts: number
 ) {
-  const resultsByHash = new Map<string, JsonRpcResponse>()
   for (const result of results) {
     const req = reqs.get(result.id)
     if (req == null) {
@@ -118,13 +118,12 @@ async function handleRpcResults(
     batchItem.callback(null, result)
   }
   if (reqs.size > 0) {
-    error(`Unprocessed batch request after receiving results`)
+    warn(`Unprocessed batch request after receiving results`)
     // dump unprocessed batch items
     console.log(JSON.stringify(Array.from(reqs.entries())))
   }
   if (missingItems.length > 0) {
     if (attempt <= maxAttempts) {
-      warn(`Unprocessed batch request after receiving results`)
       warn(`Retrying batch request (attempt ${attempt})`)
       // executeBatchRequest(missingItems, transport, abortHandle, waitAfterFailure, attempt + 1)
       const missingRequests: JsonRpcRequest[] = []
@@ -138,7 +137,7 @@ async function handleRpcResults(
         missingRequests.push(req)
       }
       const singleResults = await singleRequests(transport, missingRequests)
-      await handleRpcResults(singleResults, reqs, reqOrder, unique, transport, attempt + 1, maxAttempts)
+      await handleRpcResults(singleResults, reqs, reqOrder, unique, resultsByHash, transport, attempt + 1, maxAttempts)
     } else {
       error(`Unprocessed batch request after receiving results`)
       for (const unprocessed of missingItems) {
@@ -186,7 +185,16 @@ export async function executeBatchRequest(
         },
         onRetry: attempt => warn('Retrying eth api batch request (attempt %d)', attempt)
       })
-      await handleRpcResults(results, reqs, reqOrder, unique, transport, attempt, maxAttempts)
+      await handleRpcResults(
+        results,
+        reqs,
+        reqOrder,
+        unique,
+        new Map<string, JsonRpcResponse>(),
+        transport,
+        attempt,
+        maxAttempts
+      )
     } catch (e) {
       batch.forEach(({ callback }) => callback(e as any, null))
     }
