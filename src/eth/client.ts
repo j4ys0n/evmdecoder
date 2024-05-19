@@ -135,6 +135,7 @@ async function handleRpcResults(
           throw new RuntimeError('Request should not be missing from unique requests map')
         }
         missingRequests.push(req)
+        reqOrder.push({ hash, batchItem: missing })
       }
       const singleResults = await singleRequests(transport, missingRequests)
       await handleRpcResults(singleResults, reqs, reqOrder, unique, resultsByHash, transport, attempt + 1, maxAttempts)
