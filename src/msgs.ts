@@ -1,4 +1,4 @@
-import { DecodedStruct } from './abi/decode'
+import { DecodedFunctionCall, DecodedStruct } from './abi/decode'
 import { GethPeer } from './eth/responses'
 import { ContractInfo } from './abi/contract'
 
@@ -225,6 +225,24 @@ export interface EventData {
   }>
   /** A map of parameter names and their decoded value. Omitted if decoded anonymously */
   args?: { [name: string]: Value | DecodedStruct }
+}
+
+
+export interface FormattedTransactionTrace {
+  from: string
+  gas: string | number
+  gasUsed: string | number
+  to: string
+  input: string
+  calls?: FormattedTransactionTrace[]
+  value: string | number
+  type: string
+}
+
+export interface DecodedTransactionTrace extends Omit<FormattedTransactionTrace, 'calls'> {
+  calls?: DecodedTransactionTrace[]
+  decoded?: DecodedFunctionCall
+  contractInfo?: ContractInfo
 }
 
 export interface LogEventMessage {

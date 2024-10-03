@@ -1,6 +1,6 @@
 import { EvmDecoder } from '../src' //evmdecoder
 ;(async () => {
-  const evmDecoder = new EvmDecoder({ eth: { url: 'http://localhost:8545' } })
+  const evmDecoder = new EvmDecoder({ eth: { url: 'http://ethereum-archive.heights-labs.com:8545' } })
   await evmDecoder.initialize()
 
   console.log('--> decoded function call <--')
@@ -37,6 +37,17 @@ import { EvmDecoder } from '../src' //evmdecoder
   const blockNumber = 14354151
   const decodedBlock = await evmDecoder.getBlock(blockNumber)
   console.log(JSON.stringify(decodedBlock))
+
+  console.log('--> internal transaction <--')
+  const txnHash = '0xbb4b3fc2b746877dce70862850602f1d19bd890ab4db47e6b7ee1da1fe578a0d'
+  const internalTransaction = await evmDecoder.getInternalTransaction(txnHash, true)
+  console.log(JSON.stringify(internalTransaction))
+
+  console.log('--> fee history <--')
+  const blockCount = 10
+  const blockTarget = 20_000_000
+  const feeHistory = await evmDecoder.getFeeHistory(blockCount, blockTarget)
+  console.log(JSON.stringify(feeHistory))
 })()
 
 /**

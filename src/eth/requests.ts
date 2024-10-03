@@ -16,7 +16,10 @@ import {
   RawTransactionReceipt,
   RawTransactionResponse,
   RawParityTransactionReceipt,
-  SyncStatus
+  SyncStatus,
+  RawFeeHistoryResponse,
+  FeeHistoryResponse,
+  RawTraceTransactionResult
 } from './responses'
 
 const web3 = new Web3()
@@ -26,6 +29,20 @@ export interface EthRequest<P extends any[], R> {
   method: string
   params?: P
   response?: (r: JsonRpcResponse) => R
+}
+
+export interface EthTracerOptions {
+  tracer: string
+  tracerConfig?: {
+    enableMemory?: boolean
+    disableStack?: boolean
+    disableStorage?: boolean
+    enableReturnData?: boolean
+    debug?: boolean
+    limit?: number
+  }
+  timeout?: string // Durations, like '300ms', '1.5h', or '2h45m' https://pkg.go.dev/time#ParseDuration
+  reexec?: number
 }
 
 export function decodeResponseType(type: string, data: string): any {
@@ -50,6 +67,16 @@ export function encodeParameter(value: number | string, type: string): string {
   return web3.eth.abi.encodeParameter(type, value)
 }
 
+function parseFeeHistoryResponse({ oldestBlock, baseFeePerGas, gasUsedRatio, reward: rawReward }: RawFeeHistoryResponse): FeeHistoryResponse {
+  const reward = rawReward != null ? rawReward.map(rewards => rewards.map(bigIntToNumber)) : undefined
+  return {
+    oldestBlock: bigIntToNumber(oldestBlock),
+    baseFeePerGas: baseFeePerGas.map(bigIntToNumber),
+    gasUsedRatio,
+    reward
+  }
+}
+
 export const blockNumber = (): EthRequest<[], number> => ({
   method: 'eth_blockNumber',
   response: (r: JsonRpcResponse) => bigIntToNumber(r.result)
@@ -70,6 +97,16 @@ export const getTransaction = (txHash: string): EthRequest<[string], RawTransact
 export const getTransactionReceipt = (txHash: string): EthRequest<[string], RawTransactionReceipt> => ({
   method: 'eth_getTransactionReceipt',
   params: [txHash]
+})
+
+export const traceTransaction = (
+  txHash: string,
+  traceOptions?: EthTracerOptions
+): EthRequest<
+  [string, EthTracerOptions | undefined], RawTraceTransactionResult
+> => ({
+  method: 'debug_traceTransaction',
+  params: [txHash, traceOptions]
 })
 
 export const getCode = (address: string): EthRequest<[string, string], string> => ({
@@ -124,6 +161,16 @@ export const hashRate = (): EthRequest<[], number> => ({
 export const gasPrice = (): EthRequest<[], number | string> => ({
   method: 'eth_gasPrice',
   response: r => bigIntToNumber(r.result)
+})
+
+export const feeHistory = (blockCount: number | string, newestBlock: string | number, rewardPercentiles: number[] = []): EthRequest<[string | number, string, Array<number>], FeeHistoryResponse> => ({
+  method: 'eth_feeHistory',
+  params: [
+    blockCount,
+    typeof newestBlock === 'number' ? numberToHex(newestBlock) : newestBlock,
+    rewardPercentiles
+  ],
+  response: r => parseFeeHistoryResponse(r.result)
 })
 
 /** Returns number of peers currently connected to the client */
