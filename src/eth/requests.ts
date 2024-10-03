@@ -19,7 +19,8 @@ import {
   SyncStatus,
   RawFeeHistoryResponse,
   FeeHistoryResponse,
-  RawTraceTransactionResult
+  RawTraceTransactionResult,
+  RawBlockSlim
 } from './responses'
 
 const web3 = new Web3()
@@ -82,11 +83,11 @@ export const blockNumber = (): EthRequest<[], number> => ({
   response: (r: JsonRpcResponse) => bigIntToNumber(r.result)
 })
 
-export const getBlock = (
-  blockNumber: number | 'latest' | 'pending'
-): EthRequest<[string, boolean], RawBlockResponse> => ({
+export const getBlock = <T extends boolean>(
+  blockNumber: number | 'latest' | 'pending', includeTxns: T
+): EthRequest<[string, boolean], T extends true ? RawBlockResponse : RawBlockSlim> => ({
   method: 'eth_getBlockByNumber',
-  params: [typeof blockNumber === 'number' ? numberToHex(blockNumber) : blockNumber, true]
+  params: [typeof blockNumber === 'number' ? numberToHex(blockNumber) : blockNumber, includeTxns]
 })
 
 export const getTransaction = (txHash: string): EthRequest<[string], RawTransactionResponse> => ({
