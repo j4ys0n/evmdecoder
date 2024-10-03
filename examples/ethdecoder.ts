@@ -1,6 +1,6 @@
 import { EvmDecoder } from '../src' //evmdecoder
 ;(async () => {
-  const evmDecoder = new EvmDecoder({ eth: { url: 'http://ethereum-archive.heights-labs.com:8545' } })
+  const evmDecoder = new EvmDecoder({ eth: { url: 'http://localhost:8545' } })
   await evmDecoder.initialize()
 
   console.log('--> decoded function call <--')
