@@ -125,7 +125,7 @@ export class EvmDecoder {
       contractInfoCache: this.contractInfoCache
     }
     this.classification = new Classification(classificationResources, this.config.logging)
-    this.contractResources =  {
+    this.contractResources = {
       ethClient: this.ethClient,
       abiRepo: this.abiRepo,
       contractInfoCache: this.contractInfoCache,
@@ -142,9 +142,9 @@ export class EvmDecoder {
     address,
     contractInfo
   }: {
-    input: string;
-    address?: string,
-    contractInfo?: ContractInfo 
+    input: string
+    address?: string
+    contractInfo?: ContractInfo
   }) {
     const decoded = this.abiRepo.decodeFunctionCall(input, {
       contractAddress: address,
@@ -160,13 +160,7 @@ export class EvmDecoder {
     return decoded
   }
 
-  public async decodeFunctionCall({
-    input,
-    address
-  }: {
-    input: string;
-    address?: string,
-  }) {
+  public async decodeFunctionCall({ input, address }: { input: string; address?: string }) {
     const contractInfo = address != null ? await this.contractInfo({ address }) : undefined
     const decoded = await this._decodeFunctionCall({ input, address, contractInfo })
     return decoded
@@ -188,20 +182,28 @@ export class EvmDecoder {
     })
   }
 
+  public async getBlock<T extends boolean>(blockNumber: number, decode?: T): Promise<T extends true ? FullBlockResponse : RawBlock>
   public async getBlock(blockNumber: number, decode: boolean = true) {
-    const block = await this.ethClient.request(getBlock(blockNumber))
+    const block = await this.ethClient.request(getBlock(blockNumber, true))
     if (decode) {
       return this.processBlock(block)
+    } else {
+      return block as RawBlock
     }
-    return block as RawBlock
   }
 
+  public async getSlimBlock(blockNumber: number): Promise<RawBlockSlim> {
+    return this.ethClient.request(getBlock(blockNumber, false))
+  }
+
+  public getFullBlock<T extends boolean>(blockNumber: number, decode?: T): Promise<T extends true ? FullBlockResponse : RawFullBlock>
   public async getFullBlock(blockNumber: number, decode: boolean = true) {
-    const block = await this.ethClient.request(getBlock(blockNumber))
+    const block = await this.ethClient.request(getBlock(blockNumber, true))
     if (decode) {
       return this.processBlock(block)
+    } else {
+      return this.processRawFullBlock(block)
     }
-    return this.processRawFullBlock(block)
   }
 
   private async processRawFullBlock(block: RawBlockResponse | RawBlock) {
@@ -237,29 +239,42 @@ export class EvmDecoder {
     return rawFullBlock
   }
 
+  public async getBlocks<T extends boolean>(blockNumbers: number[], decode?: T): Promise<T extends true ? Array<FullBlockResponse> : Array<RawBlock>>
   public async getBlocks(blockNumbers: number[], decode: boolean = true) {
     const blocks = await this.ethClient
-      .requestBatch(blockNumbers.map(blockNumber => getBlock(blockNumber)))
+      .requestBatch(blockNumbers.map(blockNumber => getBlock(blockNumber, true)))
       .catch(e =>
         Promise.reject(new Error(`Failed to request batch of blocks ${blockNumbers.join(', ')}: ${e}`))
       )
     if (decode) {
       return Promise.all(blocks.map(b => this.processBlock(b)))
+    } else {
+      return blocks as RawBlock[]
     }
-    return blocks as RawBlock[]
   }
 
+  public async getSlimBlocks(blockNumbers: number[]): Promise<Array<RawBlockSlim>> {
+    return this.ethClient
+      .requestBatch(blockNumbers.map(blockNumber => getBlock(blockNumber, false)))
+      .catch(e =>
+        Promise.reject(new Error(`Failed to request batch of blocks ${blockNumbers.join(', ')}: ${e}`))
+      )
+  }
+
+  public async getFullBlocks<T extends boolean>(blockNumbers: number[], decode?: T): Promise<T extends true ? Array<FullBlockResponse> : Array<RawFullBlock>>
   public async getFullBlocks(blockNumbers: number[], decode: boolean = true) {
     if (decode) {
-      return this.getBlocks(blockNumbers, true) as Promise<FullBlockResponse[]>
+      const blocks = this.getBlocks(blockNumbers, true)
+      return blocks
+    } else {
+      const blocks = await this.getBlocks(blockNumbers, false)
+      const fullBlocks: RawFullBlock[] = []
+      for (const b of blocks) {
+        const block = await this.processRawFullBlock(b as RawBlock)
+        fullBlocks.push(block)
+      }
+      return fullBlocks
     }
-    const blocks = await this.getBlocks(blockNumbers, false)
-    const fullBlocks: RawFullBlock[] = []
-    for (const b of blocks) {
-      const block = await this.processRawFullBlock(b as RawBlock)
-      fullBlocks.push(block)
-    }
-    return fullBlocks
   }
 
   public async getPendingTransaction(hash: string, decode: boolean = true) {
@@ -319,19 +334,22 @@ export class EvmDecoder {
       }
     }
 
-    const transactions = rawBlock.transactions.length === 0 ? [] : await this.abortHandle.race(
-      Promise.all(
-        rawBlock.transactions.map(tx =>
-          this.processTransaction(
-            tx,
-            individualReceipts,
-            !individualReceipts
-              ? receipts.filter(r => r.transactionHash === (tx as RawTransactionResponse).hash)[0]
-              : undefined
+    const transactions =
+      rawBlock.transactions.length === 0
+        ? []
+        : await this.abortHandle.race(
+            Promise.all(
+              rawBlock.transactions.map(tx =>
+                this.processTransaction(
+                  tx,
+                  individualReceipts,
+                  !individualReceipts
+                    ? receipts.filter(r => r.transactionHash === (tx as RawTransactionResponse).hash)[0]
+                    : undefined
+                )
+              )
+            )
           )
-        )
-      )
-    )
     return {
       block,
       transactions
@@ -346,9 +364,12 @@ export class EvmDecoder {
   private async processRawBlockWithTransactions(rawFullBlock: RawFullBlock) {
     const { block: rawBlock, transactions: rawTransactions } = rawFullBlock
     const block = formatBlock(rawBlock)
-    const transactions = rawTransactions.length === 0 ? [] : await this.abortHandle.race(
-      Promise.all(rawTransactions.map(rawTxn => this.processRawFullTransaction(rawTxn)))
-    )
+    const transactions =
+      rawTransactions.length === 0
+        ? []
+        : await this.abortHandle.race(
+            Promise.all(rawTransactions.map(rawTxn => this.processRawFullTransaction(rawTxn)))
+          )
     return {
       block,
       transactions
@@ -415,7 +436,9 @@ export class EvmDecoder {
       toInfo && toInfo.isContract
         ? await Promise.all(
             //@ts-ignore
-            this.getLogs(receipt).map((l: RawLogResponse | RawParityLogResponse) => this.processTransactionLog(l)) ?? []
+            this.getLogs(receipt).map((l: RawLogResponse | RawParityLogResponse) =>
+              this.processTransactionLog(l)
+            ) ?? []
           )
         : []
 
@@ -456,24 +479,26 @@ export class EvmDecoder {
     return formatPendingTransaction(rawTx, 'pending', undefined, addressInfo(toInfo), callInfo)
   }
 
-  public async decodeLogEvent(
-    evt: TransactionLog
-  ) {
+  public async decodeLogEvent(evt: TransactionLog) {
     const { address } = evt
     const eventContractInfo = await contractInfo({
       address,
       resources: this.contractResources
     })
     const contractFingerprint = eventContractInfo == null ? undefined : eventContractInfo.fingerprint
-    const decodedEventData = (evt.topics != null && Array.isArray(evt.topics) && evt.topics.length > 0) 
-      ? this.abiRepo.decodeLogEvent(evt, {
-        contractAddress: address,
-        contractFingerprint
-      }) : undefined
+    const decodedEventData =
+      evt.topics != null && Array.isArray(evt.topics) && evt.topics.length > 0
+        ? this.abiRepo.decodeLogEvent(evt, {
+            contractAddress: address,
+            contractFingerprint
+          })
+        : undefined
     return { eventContractInfo, decodedEventData }
   }
 
-  public async processTransactionLog(evt: RawLogResponse | RawParityLogResponse | FormattedLogEvent): Promise<FormattedLogEvent> {
+  public async processTransactionLog(
+    evt: RawLogResponse | RawParityLogResponse | FormattedLogEvent
+  ): Promise<FormattedLogEvent> {
     const { eventContractInfo, decodedEventData } = await this.decodeLogEvent(evt)
     if (evt.address != null && decodedEventData != null && eventContractInfo != null) {
       try {
@@ -490,14 +515,15 @@ export class EvmDecoder {
     return formatLogEvent(evt, addressInfo(eventContractInfo), decodedEventData)
   }
 
-  // public async getInternalTransaction(hash: string, decode: boolean): Promise<DecodedTransactionTrace>
-  public async getInternalTransaction(hash: string, decode: boolean = false): Promise<FormattedTransactionTrace | DecodedTransactionTrace> {
+  public async getInternalTransaction<T extends boolean>(hash: string, decode?: T): Promise<T extends true ? DecodedTransactionTrace : FormattedTransactionTrace>
+  public async getInternalTransaction(hash: string, decode: boolean = true) {
     const trace = await this.ethClient.request(traceTransaction(hash, { tracer: 'callTracer' }))
     const formatted = formatTransactionTrace(trace)
     if (decode) {
       return this.decodeTransactionTrace(formatted)
+    } else {
+      return formatted
     }
-    return formatted
   }
 
   private async decodeTransactionTrace(traceInput: FormattedTransactionTrace): Promise<DecodedTransactionTrace> {
@@ -507,7 +533,9 @@ export class EvmDecoder {
         ? await this.decodeFunctionCallV2({ input, address: to })
         : { decoded: undefined, contractInfo: undefined }
     const decodedCalls =
-      calls != null ? await Promise.all(calls.map(async call => await this.decodeTransactionTrace(call))) : undefined
+      calls != null
+        ? await Promise.all(calls.map(async call => await this.decodeTransactionTrace(call)))
+        : undefined
     return {
       ...trace,
       to,
