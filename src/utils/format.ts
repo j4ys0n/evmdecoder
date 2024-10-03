@@ -5,7 +5,8 @@ import {
   RawTransactionReceipt,
   RawTransactionResponse,
   RawParityLogResponse,
-  RawBlockSlim
+  RawBlockSlim,
+  RawTraceTransactionResult
 } from '../eth/responses'
 import {
   AddressInfo,
@@ -15,6 +16,7 @@ import {
   FormattedLogEvent,
   FormattedPendingTransaction,
   FormattedTransaction,
+  FormattedTransactionTrace,
   FunctionCall,
   PrivateTransactionPayload
 } from '../msgs'
@@ -160,5 +162,20 @@ export function formatLogEvent(
     topics: evt.topics,
     addressInfo,
     event
+  }
+}
+
+export function formatTransactionTrace(
+  trace: RawTraceTransactionResult
+): FormattedTransactionTrace {
+  return {
+    from: toChecksumAddress(trace.from),
+    gas: parseBigInt(trace.gas),
+    gasUsed: parseBigInt(trace.gasUsed),
+    to: toChecksumAddress(trace.to),
+    input: trace.input,
+    calls: trace.calls != null ? trace.calls.map(formatTransactionTrace) : undefined,
+    value: trace.value != null ? parseBigInt(trace.value) : 0,
+    type: trace.type
   }
 }

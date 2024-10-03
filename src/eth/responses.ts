@@ -119,6 +119,17 @@ export interface RawParityTransactionReceipt extends RawTransactionReceipt {
   logs?: RawParityLogResponse[]
 }
 
+export interface RawTraceTransactionResult {
+  from: string
+  gas: string
+  gasUsed: string
+  to: string
+  input: string
+  calls?: RawTraceTransactionResult[]
+  value: string
+  type: string
+}
+
 export type SyncStatus =
   /** The node is not syncing if SyncStatus is false */
   | false
@@ -130,6 +141,20 @@ export type SyncStatus =
       /** The estimated highest block */
       highestBlock: number
     }
+
+export interface RawFeeHistoryResponse {
+  oldestBlock: string
+  baseFeePerGas: Array<string>
+  gasUsedRatio: Array<number>
+  reward?: Array<Array<string>>
+}
+
+export interface FeeHistoryResponse {
+  oldestBlock: number
+  baseFeePerGas: Array<number>
+  gasUsedRatio: Array<number>
+  reward?: Array<Array<number>>
+}
 
 export interface GethNodeInfoResponse {
   enode: string

@@ -8,8 +8,9 @@ import { AbiRepository, TransactionLog } from './abi/repo'
 import { Config, DeepPartial } from './config'
 import { BatchedEthereumClient, EthereumClient } from './eth/client'
 import { HttpTransport } from './eth/http'
-import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt, blockNumber } from './eth/requests'
+import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt, blockNumber, traceTransaction, feeHistory } from './eth/requests'
 import {
+  FeeHistoryResponse,
   RawBlock,
   RawBlockResponse,
   RawBlockSlim,
@@ -17,15 +18,16 @@ import {
   RawLogResponse,
   RawParityLogResponse,
   RawParityTransactionReceipt,
+  RawTraceTransactionResult,
   RawTransaction,
   RawTransactionReceipt,
   RawTransactionResponse
 } from './eth/responses'
-import { FormattedBlock, FormattedLogEvent, FormattedPendingTransaction, FormattedTransaction } from './msgs'
+import { DecodedTransactionTrace, FormattedBlock, FormattedLogEvent, FormattedPendingTransaction, FormattedTransaction, FormattedTransactionTrace } from './msgs'
 import { bigIntToNumber } from './utils/bn'
 import { Classification, ClassificationResources } from './utils/classification'
 import { RuntimeError } from './utils/error'
-import { formatBlock, formatLogEvent, formatPendingTransaction, formatTransaction, parseBlockTime } from './utils/format'
+import { formatBlock, formatLogEvent, formatPendingTransaction, formatTransaction, formatTransactionTrace, parseBlockTime } from './utils/format'
 import { deepMerge } from './utils/obj'
 
 const { info, warn, error } = createModuleDebug('evmdecoder:main')
@@ -486,6 +488,38 @@ export class EvmDecoder {
       }
     }
     return formatLogEvent(evt, addressInfo(eventContractInfo), decodedEventData)
+  }
+
+  // public async getInternalTransaction(hash: string, decode: boolean): Promise<DecodedTransactionTrace>
+  public async getInternalTransaction(hash: string, decode: boolean = false): Promise<FormattedTransactionTrace | DecodedTransactionTrace> {
+    const trace = await this.ethClient.request(traceTransaction(hash, { tracer: 'callTracer' }))
+    const formatted = formatTransactionTrace(trace)
+    if (decode) {
+      return this.decodeTransactionTrace(formatted)
+    }
+    return formatted
+  }
+
+  private async decodeTransactionTrace(traceInput: FormattedTransactionTrace): Promise<DecodedTransactionTrace> {
+    const { input, to, calls, ...trace } = traceInput
+    const { decoded, contractInfo } =
+      input != null && input !== '0x'
+        ? await this.decodeFunctionCallV2({ input, address: to })
+        : { decoded: undefined, contractInfo: undefined }
+    const decodedCalls =
+      calls != null ? await Promise.all(calls.map(async call => await this.decodeTransactionTrace(call))) : undefined
+    return {
+      ...trace,
+      to,
+      input,
+      calls: decodedCalls,
+      decoded,
+      contractInfo
+    }
+  }
+
+  public async getFeeHistory(blockCount: number, blockTarget: number): Promise<FeeHistoryResponse> {
+    return this.ethClient.request(feeHistory(blockCount, blockTarget))
   }
 
   public async getLatestBlockNumber(): Promise<number> {
