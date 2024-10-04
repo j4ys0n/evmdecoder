@@ -8,7 +8,7 @@ import { AbiRepository, TransactionLog } from './abi/repo'
 import { Config, DeepPartial } from './config'
 import { BatchedEthereumClient, EthereumClient } from './eth/client'
 import { HttpTransport } from './eth/http'
-import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt, blockNumber, traceTransaction, feeHistory } from './eth/requests'
+import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt, blockNumber, traceTransaction, feeHistory, getBlockByHash } from './eth/requests'
 import {
   FeeHistoryResponse,
   RawBlock,
@@ -259,6 +259,12 @@ export class EvmDecoder {
       .catch(e =>
         Promise.reject(new Error(`Failed to request batch of blocks ${blockNumbers.join(', ')}: ${e}`))
       )
+  }
+
+  public async getSlimBlocksByHash(blockHashes: string[]): Promise<Array<RawBlockSlim>> {
+    return this.ethClient
+      .requestBatch(blockHashes.map(blockHash => getBlockByHash(blockHash, false)))
+      .catch(e => Promise.reject(new Error(`Failed to request batch of blocks ${blockHashes.join(', ')}: ${e}`)))
   }
 
   public async getFullBlocks<T extends boolean>(blockNumbers: number[], decode?: T): Promise<T extends true ? Array<FullBlockResponse> : Array<RawFullBlock>>
