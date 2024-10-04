@@ -526,7 +526,24 @@ export class EvmDecoder {
     }
   }
 
-  private async decodeTransactionTrace(traceInput: FormattedTransactionTrace): Promise<DecodedTransactionTrace> {
+  public async getInternalTransactions<T extends boolean>(hashes: string[], decode?: T): Promise<T extends true ? Array<DecodedTransactionTrace> : Array<FormattedTransactionTrace>>
+  public async getInternalTransactions(hashes: string[], decode: boolean = true) {
+    const traces = await this.ethClient
+      .requestBatch(hashes.map(hash => traceTransaction(hash, { tracer: 'callTracer' })))
+      .catch(e => Promise.reject(new Error(`Failed to request batch of blocks ${hashes.join(', ')}: ${e}`)))
+    if (decode) {
+      const decoded: DecodedTransactionTrace[] = []
+      for (const trace of traces) {
+        const dTrace = await this.decodeTransactionTrace(trace)
+        decoded.push(dTrace)
+        return decoded
+      }
+    } else {
+      return traces
+    }
+  }
+
+  public async decodeTransactionTrace(traceInput: FormattedTransactionTrace): Promise<DecodedTransactionTrace> {
     const { input, to, calls, ...trace } = traceInput
     const { decoded, contractInfo } =
       input != null && input !== '0x'
