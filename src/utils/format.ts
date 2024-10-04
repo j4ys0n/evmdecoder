@@ -169,10 +169,10 @@ export function formatTransactionTrace(
   trace: RawTraceTransactionResult
 ): FormattedTransactionTrace {
   return {
-    from: toChecksumAddress(trace.from),
-    gas: parseBigInt(trace.gas),
-    gasUsed: parseBigInt(trace.gasUsed),
-    to: toChecksumAddress(trace.to),
+    from: trace.from != null ? toChecksumAddress(trace.from) : '',
+    gas: trace.gas != null ? parseBigInt(trace.gas) : 0,
+    gasUsed: trace.gasUsed != null ? parseBigInt(trace.gasUsed) : 0,
+    to: trace.from != null ? toChecksumAddress(trace.to) : '',
     input: trace.input,
     calls: trace.calls != null ? trace.calls.map(formatTransactionTrace) : undefined,
     value: trace.value != null ? parseBigInt(trace.value) : 0,
