@@ -90,6 +90,13 @@ export const getBlock = <T extends boolean>(
   params: [typeof blockNumber === 'number' ? numberToHex(blockNumber) : blockNumber, includeTxns]
 })
 
+export const getBlockByHash = <T extends boolean>(
+  blockHash: string, includeTxns: T
+): EthRequest<[string, boolean], T extends true ? RawBlockResponse : RawBlockSlim> => ({
+  method: 'eth_getBlockByHash',
+  params: [blockHash, includeTxns]
+})
+
 export const getTransaction = (txHash: string): EthRequest<[string], RawTransactionResponse> => ({
   method: 'eth_getTransactionByHash',
   params: [txHash]
