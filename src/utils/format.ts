@@ -53,7 +53,7 @@ export function formatBlock(rawBlock: RawBlockResponse | RawBlockSlim): Formatte
     gasUsed: parseBigInt(rawBlock.gasUsed),
     extraData: rawBlock.extraData,
     nonce: rawBlock.nonce,
-    totalDifficulty: parseBigInt(rawBlock.totalDifficulty),
+    totalDifficulty: rawBlock.totalDifficulty != null ? parseBigInt(rawBlock.totalDifficulty) : 0,
     size: bigIntToNumber(rawBlock.size),
     uncles: rawBlock.uncles,
     transactionCount: rawBlock.transactions == null ? 0 : rawBlock.transactions.length,
