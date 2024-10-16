@@ -552,7 +552,7 @@ export class EvmDecoder {
   public async decodeTransactionTrace(traceInput: FormattedTransactionTrace): Promise<DecodedTransactionTrace> {
     const { input, to, calls, ...trace } = traceInput
     const { decoded, contractInfo } =
-      input != null && input !== '0x'
+      input != null && input !== '0x' && to != null && to.startsWith('0x') && to.length === 42
         ? await this.decodeFunctionCallV2({ input, address: to })
         : { decoded: undefined, contractInfo: undefined }
     const decodedCalls =
