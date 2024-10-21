@@ -221,7 +221,7 @@ export class EthereumClient {
     return typeof req.response === 'function' ? req.response(res) : res.result
   }
 
-  async requestBatch<P extends any[], R>(reqs: EthRequest<P, R>[]): Promise<R[]> {
+  async requestBatch<P extends any[], R>(reqs: EthRequest<P, R>[], options?: { ignoreErrors?: boolean }): Promise<R[]> {
     const batchReqs: BatchReq[] = []
     const promises = []
     for (const request of reqs) {
@@ -234,7 +234,11 @@ export class EthereumClient {
                 reject(e)
               }
               try {
-                checkError(result)
+                if (options != null && !!options.ignoreErrors) {
+                  // ignore errors
+                } else {
+                  checkError(result)
+                }
                 resolve(typeof request.response === 'function' ? request.response(result) : result.result)
               } catch (e) {
                 debug(`JSON RPC request method: %s failed`, request.method, e)

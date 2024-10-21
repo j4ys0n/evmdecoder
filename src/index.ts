@@ -8,7 +8,7 @@ import { AbiRepository, TransactionLog } from './abi/repo'
 import { Config, DeepPartial } from './config'
 import { BatchedEthereumClient, EthereumClient } from './eth/client'
 import { HttpTransport } from './eth/http'
-import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt, blockNumber, traceTransaction, feeHistory, getBlockByHash } from './eth/requests'
+import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt, blockNumber, traceTransaction, feeHistory, getBlockByHash, pendingTransactions } from './eth/requests'
 import {
   FeeHistoryResponse,
   RawBlock,
@@ -28,7 +28,7 @@ import { bigIntToNumber } from './utils/bn'
 import { Classification, ClassificationResources } from './utils/classification'
 import { RuntimeError } from './utils/error'
 import { formatBlock, formatLogEvent, formatPendingTransaction, formatTransaction, formatTransactionTrace, parseBlockTime } from './utils/format'
-import { deepMerge } from './utils/obj'
+import { chunkArray, deepMerge } from './utils/obj'
 
 const { info, warn, error } = createModuleDebug('evmdecoder:main')
 
@@ -283,6 +283,33 @@ export class EvmDecoder {
     }
   }
 
+  public async getPendingTransactions(decode: boolean = true) {
+    // pendingTransactions
+    try {
+      const pending = await this.ethClient.request(pendingTransactions())
+      const hashes = pending.map(({ hash }) => hash)
+      const chunks = chunkArray(hashes, 1000)
+      let rawTransactions: RawTransactionResponse[] = []
+      for (const chunk of chunks) {
+        const reqChunk = chunk.map(hash => getTransaction(hash))
+        const transactionsChunk = await this.ethClient.requestBatch(reqChunk, { ignoreErrors: true })
+        rawTransactions = rawTransactions.concat(transactionsChunk)
+      }
+      if (decode) {
+        const decoded: FormattedPendingTransaction[] = []
+        for (const transaction of rawTransactions) {
+          const decodedTxn = await this.processPendingTransaction(transaction)
+          decoded.push(decodedTxn)
+        }
+        return decoded
+      } else {
+        return rawTransactions
+      }
+    } catch(e) {
+      return undefined
+    }
+  }
+
   public async getPendingTransaction(hash: string, decode: boolean = true) {
     try {
       const transaction = await this.ethClient.request(getTransaction(hash), { ignoreErrors: true })
@@ -469,20 +496,8 @@ export class EvmDecoder {
       throw new RuntimeError(`Received raw transaction`)
     }
 
-    const toInfo =
-      rawTx.to != null
-        ? await contractInfo({
-            address: rawTx.to,
-            resources: this.contractResources
-          })
-        : undefined
-
-    const callInfo =
-      toInfo && toInfo.isContract
-        ? await this.decodeFunctionCall({ input: rawTx.input, address: rawTx.to! })
-        : undefined
-
-    return formatPendingTransaction(rawTx, 'pending', undefined, addressInfo(toInfo), callInfo)
+    const { decoded, contractInfo } = await this.decodeFunctionCallV2({ input: rawTx.input, address: rawTx.to! })
+    return formatPendingTransaction(rawTx, 'pending', undefined, addressInfo(contractInfo), decoded)
   }
 
   public async decodeLogEvent(evt: TransactionLog) {
