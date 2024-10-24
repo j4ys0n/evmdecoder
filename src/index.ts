@@ -192,11 +192,27 @@ export class EvmDecoder {
     }
   }
 
-  public async getSlimBlock(blockNumber: number): Promise<RawBlockSlim> {
-    return this.ethClient.request(getBlock(blockNumber, false))
+  public async getSlimBlock<T extends boolean>(blockNumber: number, raw?: T): Promise<T extends true ? RawBlockSlim : FormattedBlock>
+  public async getSlimBlock(blockNumber: number, raw: boolean = true) {
+    const block = await this.ethClient.request(getBlock(blockNumber, false))
+    if (raw) {
+      return block
+    } else {
+      return formatBlock(block)
+    }
   }
 
-  public getFullBlock<T extends boolean>(blockNumber: number, decode?: T): Promise<T extends true ? FullBlockResponse : RawFullBlock>
+  public async getSlimBlockByHash<T extends boolean>(hash: string, raw?: T): Promise<T extends true ? RawBlockSlim : FormattedBlock>
+  public async getSlimBlockByHash(hash: string, raw: boolean = true) {
+    const block = await this.ethClient.request(getBlockByHash(hash, false))
+    if (raw) {
+      return block
+    } else {
+      return formatBlock(block)
+    }
+  }
+
+  public async getFullBlock<T extends boolean>(blockNumber: number, decode?: T): Promise<T extends true ? FullBlockResponse : RawFullBlock>
   public async getFullBlock(blockNumber: number, decode: boolean = true) {
     const block = await this.ethClient.request(getBlock(blockNumber, true))
     if (decode) {
