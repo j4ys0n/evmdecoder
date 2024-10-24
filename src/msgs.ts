@@ -50,6 +50,22 @@ export interface FormattedBlock {
   transactionCount: number
   // transaction hashes
   transactions: string[]
+
+  // newer fields
+  baseFeePerGas: number | string | null
+  blobGasUsed: number | string | null
+  excessBlobGas: number | string | null
+  mixHash: string | null
+  parentBeaconBlockRoot: string | null
+  withdrawals: BlockWithdrawal[]
+  withdrawalsRoot: string | null
+}
+
+export interface BlockWithdrawal {
+  index: number | string
+  validatorIndex: number | string
+  address: Address
+  amount: number | string
 }
 
 export interface BlockMessage {

@@ -14,6 +14,22 @@ export interface RawBlockHeaderResponse {
   timestamp: string
   extraData: string
   nonce: string | null
+  uncles: string[]
+  // newer
+  baseFeePerGas: string | null
+  blobGasUsed: string | null
+  excessBlobGas: string | null
+  mixHash: string
+  parentBeaconBlockRoot: string | null
+  withdrawals: RawBlockWithdrawal[]
+  withdrawalsRoot: string | null
+}
+
+export interface RawBlockWithdrawal {
+  index: string
+  validatorIndex: string
+  address: string
+  amount: string
 }
 
 export interface RawBlockResponse extends RawBlockHeaderResponse {

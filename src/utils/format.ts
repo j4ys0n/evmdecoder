@@ -51,6 +51,7 @@ export function formatBlock(rawBlock: RawBlockResponse | RawBlockSlim): Formatte
     difficulty: parseBigInt(rawBlock.difficulty),
     gasLimit: parseBigInt(rawBlock.gasLimit),
     gasUsed: parseBigInt(rawBlock.gasUsed),
+    baseFeePerGas: rawBlock.baseFeePerGas != null ? parseBigInt(rawBlock.baseFeePerGas) : null,
     extraData: rawBlock.extraData,
     nonce: rawBlock.nonce,
     totalDifficulty: rawBlock.totalDifficulty != null ? parseBigInt(rawBlock.totalDifficulty) : 0,
@@ -62,7 +63,18 @@ export function formatBlock(rawBlock: RawBlockResponse | RawBlockSlim): Formatte
         ? []
         //@ts-ignore
         : rawBlock.transactions.map(txn => (typeof txn === 'string' ? txn : txn.hash)))
-    )
+    ),
+    blobGasUsed: rawBlock.blobGasUsed != null ? parseBigInt(rawBlock.blobGasUsed) : null,
+    excessBlobGas: rawBlock.excessBlobGas != null ? parseBigInt(rawBlock.excessBlobGas) : null,
+    mixHash: rawBlock.mixHash,
+    parentBeaconBlockRoot: rawBlock.parentBeaconBlockRoot,
+    withdrawals: rawBlock.withdrawals != null ? rawBlock.withdrawals.map(({ index, validatorIndex, address, amount}) => ({
+      index: parseBigInt(index),
+      validatorIndex: parseBigInt(index),
+      address: toChecksumAddress(address),
+      amount: parseBigInt(amount)
+    })) : [],
+    withdrawalsRoot: rawBlock.withdrawalsRoot
   }
 }
 
