@@ -8,7 +8,7 @@ import { AbiRepository, TransactionLog } from './abi/repo'
 import { Config, DeepPartial } from './config'
 import { BatchedEthereumClient, EthereumClient } from './eth/client'
 import { HttpTransport } from './eth/http'
-import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt, blockNumber, traceTransaction, feeHistory, getBlockByHash, pendingTransactions } from './eth/requests'
+import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt, blockNumber, traceTransaction, feeHistory, getBlockByHash, pendingTransactions, allPendingTransactions } from './eth/requests'
 import {
   FeeHistoryResponse,
   RawBlock,
@@ -59,7 +59,7 @@ const DEFAULT_CONFIG: DeepPartial<Config> = {
   contractInfo: {
     maxCacheEntries: 25_000
   },
-  logging: {}
+  logging: {},
 }
 
 export interface RawFullBlock {
@@ -299,10 +299,14 @@ export class EvmDecoder {
     }
   }
 
+  public async getPendingTransactions<T extends boolean>(decode?: T): Promise<T extends true ? Array<FormattedPendingTransaction> : Array<RawTransactionResponse>>
   public async getPendingTransactions(decode: boolean = true) {
     // pendingTransactions
     try {
-      const pending = await this.ethClient.request(pendingTransactions())
+      console.log('--> getting pending transactions')
+      const req = this.config.experimental ? allPendingTransactions : pendingTransactions
+      const pending = await this.ethClient.request(req())
+      console.log(`--> got ${pending.length} pending transactions`)
       const hashes = pending.map(({ hash }) => hash)
       const chunks = chunkArray(hashes, 1000)
       let rawTransactions: RawTransactionResponse[] = []
@@ -322,7 +326,7 @@ export class EvmDecoder {
         return rawTransactions
       }
     } catch(e) {
-      return undefined
+      return []
     }
   }
 

@@ -128,7 +128,13 @@ export const getStorageAt = (address: string, storageSlot: string): EthRequest<[
 })
 
 export const pendingTransactions = (): EthRequest<[], RawTransactionResponse[]> => ({
-  method: 'eth_pendingTransactions'
+  method: 'eth_pendingTransactions',
+  params: []
+})
+
+export const allPendingTransactions = (): EthRequest<[], RawTransactionResponse[]> => ({
+  method: 'eth_allPendingTransactions',
+  params: []
 })
 
 /** Returns the current client version */

@@ -7,6 +7,8 @@ export interface Config {
   contractInfo: ContractInfoConfigSchema
   /** Log settings */
   logging: LogConfigSchema
+  /** Experimental features */
+  experimental?: boolean
 }
 
 /** General Ethereum configuration including client and transport, defining how evmdecoder talks to the ethereum node */
