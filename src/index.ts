@@ -16,8 +16,6 @@ import {
   RawBlockSlim,
   RawLogEvent,
   RawLogResponse,
-  RawParityLogResponse,
-  RawParityTransactionReceipt,
   RawTraceTransactionResult,
   RawTransaction,
   RawTransactionReceipt,
@@ -354,7 +352,7 @@ export class EvmDecoder {
     const receipt = await this.ethClient.request(getTransactionReceipt(hash))
     if (receipt && decode) {
       return Promise.all(
-        receipt?.logs?.map((l: RawLogResponse | RawParityLogResponse) => this.processTransactionLog(l)) ?? []
+        receipt?.logs?.map((l: RawLogResponse) => this.processTransactionLog(l)) ?? []
       )
     }
     if (receipt) {
@@ -365,7 +363,7 @@ export class EvmDecoder {
 
   private async processRawBlock(rawBlock: RawBlockResponse | RawBlock) {
     const block = formatBlock(rawBlock)
-    let receipts: RawParityTransactionReceipt[] = []
+    let receipts: RawTransactionReceipt[] = []
     let individualReceipts = this.config.eth.client.individualReceipts
     if (!individualReceipts) {
       try {
@@ -440,7 +438,7 @@ export class EvmDecoder {
   public async processTransaction(
     rawTx: RawTransactionResponse | RawTransaction | string,
     fetchReceipts: boolean,
-    rawReceipt: RawParityTransactionReceipt | RawTransactionReceipt | undefined = undefined
+    rawReceipt:  RawTransactionReceipt | undefined = undefined
   ): Promise<FormattedTransactionResponse> {
     if (typeof rawTx === 'string') {
       warn('Received raw transaction %s from block %d')
@@ -501,7 +499,7 @@ export class EvmDecoder {
     }
   }
 
-  private getLogs(receipt?: RawTransactionReceipt | RawParityTransactionReceipt) {
+  private getLogs(receipt?: RawTransactionReceipt) {
     if (receipt == null || receipt.logs == null) {
       return []
     }
@@ -538,7 +536,7 @@ export class EvmDecoder {
   }
 
   public async processTransactionLog(
-    evt: RawLogResponse | RawParityLogResponse | FormattedLogEvent
+    evt: RawLogResponse | FormattedLogEvent
   ): Promise<FormattedLogEvent> {
     const { eventContractInfo, decodedEventData } = await this.decodeLogEvent(evt)
     if (evt.address != null && decodedEventData != null && eventContractInfo != null) {

@@ -15,7 +15,6 @@ import {
   RawBlockResponse,
   RawTransactionReceipt,
   RawTransactionResponse,
-  RawParityTransactionReceipt,
   SyncStatus,
   RawFeeHistoryResponse,
   FeeHistoryResponse,
