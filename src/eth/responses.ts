@@ -146,6 +146,11 @@ export interface RawTraceTransactionResult {
   type: string
 }
 
+export interface RawTraceTransactionItemResult {
+  txHash: string
+  result: RawTraceTransactionResult
+}
+
 export type SyncStatus =
   /** The node is not syncing if SyncStatus is false */
   | false

@@ -20,7 +20,8 @@ import {
   RawFeeHistoryResponse,
   FeeHistoryResponse,
   RawTraceTransactionResult,
-  RawBlockSlim
+  RawBlockSlim,
+  RawTraceTransactionItemResult
 } from './responses'
 
 const web3 = new Web3()
@@ -114,7 +115,17 @@ export const traceTransaction = (
   [string, EthTracerOptions | undefined], RawTraceTransactionResult
 > => ({
   method: 'debug_traceTransaction',
-  params: [txHash, traceOptions]
+  params: [txHash, traceOptions ?? { tracer: 'callTracer', timeout: '180s' }]
+})
+
+export const traceBlockByNumber = (
+  blockNumber: number,
+  traceOptions?: EthTracerOptions
+): EthRequest<
+  [string, EthTracerOptions | undefined], RawTraceTransactionItemResult[]
+> => ({
+  method: 'debug_traceBlockByNumber',
+  params: [numberToHex(blockNumber), traceOptions ?? { tracer: 'callTracer', timeout: '180s' }]
 })
 
 export const getCode = (address: string): EthRequest<[string, string], string> => ({
@@ -284,7 +295,7 @@ export const parityPendingTransactions = (): EthRequest<[], ParityPendingTransac
 
 export const getBlockReceipts = (
   blockNumber: number | string
-): EthRequest<[string], RawParityTransactionReceipt[]> => ({
-  method: 'parity_getBlockReceipts',
+): EthRequest<[string], RawTransactionReceipt[]> => ({
+  method: 'eth_getBlockReceipts',
   params: [typeof blockNumber === 'number' ? numberToHex(blockNumber) : blockNumber]
 })
