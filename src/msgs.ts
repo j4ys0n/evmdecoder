@@ -243,23 +243,27 @@ export interface EventData {
   args?: { [name: string]: Value | DecodedStruct }
 }
 
-
 export interface FormattedTransactionTrace {
+  hash: string
   from: string
   gas: string | number
   gasUsed: string | number
   to: string
   input: string
-  calls?: FormattedTransactionTrace[]
+  calls?: FormattedTransactionTraceItem[]
   value: string | number
   type: string
 }
+
+export interface FormattedTransactionTraceItem extends Omit<FormattedTransactionTrace, 'hash'> {}
 
 export interface DecodedTransactionTrace extends Omit<FormattedTransactionTrace, 'calls'> {
   calls?: DecodedTransactionTrace[]
   decoded?: DecodedFunctionCall
   contractInfo?: ContractInfo
 }
+
+export interface DecodedTransactionTraceItem extends Omit<DecodedTransactionTrace, 'hash'> {}
 
 export interface LogEventMessage {
   type: 'event'

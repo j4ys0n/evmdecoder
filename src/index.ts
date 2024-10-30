@@ -8,7 +8,7 @@ import { AbiRepository, TransactionLog } from './abi/repo'
 import { Config, DeepPartial } from './config'
 import { BatchedEthereumClient, EthereumClient } from './eth/client'
 import { HttpTransport } from './eth/http'
-import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt, blockNumber, traceTransaction, feeHistory, getBlockByHash, pendingTransactions, allPendingTransactions } from './eth/requests'
+import { getBlock, getBlockReceipts, getTransaction, getTransactionReceipt, blockNumber, traceTransaction, feeHistory, getBlockByHash, pendingTransactions, allPendingTransactions, traceBlockByNumber } from './eth/requests'
 import {
   FeeHistoryResponse,
   RawBlock,
@@ -21,7 +21,7 @@ import {
   RawTransactionReceipt,
   RawTransactionResponse
 } from './eth/responses'
-import { DecodedTransactionTrace, FormattedBlock, FormattedLogEvent, FormattedPendingTransaction, FormattedTransaction, FormattedTransactionTrace } from './msgs'
+import { DecodedTransactionTrace, DecodedTransactionTraceItem, FormattedBlock, FormattedLogEvent, FormattedPendingTransaction, FormattedTransaction, FormattedTransactionTrace, FormattedTransactionTraceItem } from './msgs'
 import { bigIntToNumber } from './utils/bn'
 import { Classification, ClassificationResources } from './utils/classification'
 import { RuntimeError } from './utils/error'
@@ -557,30 +557,30 @@ export class EvmDecoder {
   public async getInternalTransaction<T extends boolean>(hash: string, decode?: T): Promise<T extends true ? DecodedTransactionTrace : FormattedTransactionTrace>
   public async getInternalTransaction(hash: string, decode: boolean = true) {
     const trace = await this.ethClient.request(traceTransaction(hash, { tracer: 'callTracer' }))
-    const formatted = formatTransactionTrace(trace)
+    const formatted = formatTransactionTrace(trace, hash)
     if (decode) {
-      return this.decodeTransactionTrace(formatted)
+      return this.decodeTransactionTrace<DecodedTransactionTrace>(formatted)
     } else {
       return formatted
     }
   }
 
-  public async getInternalTransactions<T extends boolean>(hashes: string[], decode?: T): Promise<T extends true ? Array<DecodedTransactionTrace> : Array<FormattedTransactionTrace>>
-  public async getInternalTransactions(hashes: string[], decode: boolean = true) {
-    const traces = await this.ethClient
-      .requestBatch(hashes.map(hash => traceTransaction(hash, { tracer: 'callTracer' })))
-      .catch(e => Promise.reject(new Error(`Failed to request batch of blocks ${hashes.join(', ')}: ${e}`)))
+  public async getInternalTransactionsByBlock<T extends boolean>(blockNumber: number, decode?: T): Promise<T extends true ? Array<DecodedTransactionTrace> : Array<FormattedTransactionTrace>>
+  public async getInternalTransactionsByBlock(blockNumber: number, decode: boolean = true) {
+    const traces = await this.ethClient.request(traceBlockByNumber(blockNumber, { tracer: 'callTracer' }))
+    const formattedTraces = traces.map(({ txHash, result }) => formatTransactionTrace(result, txHash))
     if (decode) {
       const decoded: DecodedTransactionTrace[] = []
-      for (const trace of traces) {
-        const dTrace = await this.decodeTransactionTrace(trace)
+      for (const trace of formattedTraces) {
+        const dTrace = await this.decodeTransactionTrace<DecodedTransactionTrace>(trace)
         decoded.push(dTrace)
-        return decoded
       }
+      return decoded
     } else {
-      return traces
+      return formattedTraces
     }
   }
+  
 
   private async tryDecodeTraceFunctionCall(input: string, address: string) {
     try {
@@ -593,7 +593,10 @@ export class EvmDecoder {
     return { decoded: undefined, contractInfo: undefined }
   }
 
-  public async decodeTransactionTrace(traceInput: FormattedTransactionTrace): Promise<DecodedTransactionTrace> {
+
+  public async decodeTransactionTrace<T extends DecodedTransactionTrace | DecodedTransactionTraceItem>(
+    traceInput: FormattedTransactionTrace | FormattedTransactionTraceItem
+  ): Promise<T> {
     const { input, to, calls, ...trace } = traceInput
     const { decoded, contractInfo } =
       input != null && input !== '0x' && to != null && to.startsWith('0x') && to.length === 42
@@ -601,16 +604,19 @@ export class EvmDecoder {
         : { decoded: undefined, contractInfo: undefined }
     const decodedCalls =
       calls != null
-        ? await Promise.all(calls.map(async call => await this.decodeTransactionTrace(call)))
+        ? await Promise.all(
+            calls.map(async call => await this.decodeTransactionTrace<DecodedTransactionTraceItem>(call))
+          )
         : undefined
-    return {
-      ...trace,
-      to,
-      input,
-      calls: decodedCalls,
-      decoded,
-      contractInfo
-    }
+    const response = {
+        ...trace,
+        to,
+        input,
+        calls: decodedCalls,
+        decoded,
+        contractInfo
+      } as T
+    return response
   }
 
   public async getFeeHistory(blockCount: number, blockTarget: number): Promise<FeeHistoryResponse> {

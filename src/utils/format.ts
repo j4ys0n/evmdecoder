@@ -17,6 +17,7 @@ import {
   FormattedPendingTransaction,
   FormattedTransaction,
   FormattedTransactionTrace,
+  FormattedTransactionTraceItem,
   FunctionCall,
   PrivateTransactionPayload
 } from '../msgs'
@@ -178,15 +179,17 @@ export function formatLogEvent(
 }
 
 export function formatTransactionTrace(
-  trace: RawTraceTransactionResult
-): FormattedTransactionTrace {
+  trace: RawTraceTransactionResult,
+  hash?: string
+): FormattedTransactionTrace | FormattedTransactionTraceItem {
   return {
+    hash,
     from: trace.from != null ? toChecksumAddress(trace.from) : '',
     gas: trace.gas != null ? parseBigInt(trace.gas) : 0,
     gasUsed: trace.gasUsed != null ? parseBigInt(trace.gasUsed) : 0,
     to: trace.to != null ? toChecksumAddress(trace.to) : '',
     input: trace.input,
-    calls: trace.calls != null ? trace.calls.map(formatTransactionTrace) : undefined,
+    calls: trace.calls != null ? trace.calls.map(c => formatTransactionTrace(c)) : undefined,
     value: trace.value != null ? parseBigInt(trace.value) : 0,
     type: trace.type
   }
