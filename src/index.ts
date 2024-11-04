@@ -187,6 +187,9 @@ export class EvmDecoder {
   public async getBlock<T extends boolean>(blockNumber: number, decode?: T): Promise<T extends true ? FullBlockResponse : RawBlock>
   public async getBlock(blockNumber: number, decode: boolean = true) {
     const block = await this.ethClient.request(getBlock(blockNumber, true))
+    block.transactions = block.transactions.map(t =>
+      typeof t === 'string' ? t : { ...t, timestamp: timestampMS(block.timestamp) }
+    )
     if (decode) {
       return this.processBlock(block)
     } else {
@@ -267,11 +270,6 @@ export class EvmDecoder {
       .catch(e =>
         Promise.reject(new Error(`Failed to request batch of blocks ${blockNumbers.join(', ')}: ${e}`))
       )
-    
-    for (let i = 0; i < blocks.length; i++) {
-      const transactions = blocks[i].transactions.map(t => ({ ...t, timestamp: timestampMS(blocks[i].timestamp) }))
-      blocks[i].transactions = transactions
-    }
     if (decode) {
       return Promise.all(blocks.map(b => this.processBlock(b)))
     } else {
@@ -356,7 +354,10 @@ export class EvmDecoder {
     const transaction = await this.ethClient.request(getTransaction(hash))
     if (transaction.blockHash != null) {
       const cachedBlockTS = this.blockTimestampCache.get(transaction.blockHash)
-      const timestamp = cachedBlockTS ?? timestampMS((await this.getSlimBlockByHash(transaction.blockHash)).timestamp)
+      const timestamp =
+        cachedBlockTS == null || cachedBlockTS === 0
+          ? timestampMS((await this.getSlimBlockByHash(transaction.blockHash ?? '')).timestamp)
+          : cachedBlockTS
       this.blockTimestampCache.set(transaction.blockHash, timestamp)
       transaction.timestamp = timestamp
     }
@@ -369,7 +370,10 @@ export class EvmDecoder {
   public async getTransactionReceipt(hash: string, decode: boolean = true) {
     const receipt = await this.ethClient.request(getTransactionReceipt(hash))
     const cachedBlockTS = this.blockTimestampCache.get(receipt.blockHash)
-    const timestamp = cachedBlockTS ?? timestampMS((await this.getSlimBlockByHash(receipt.blockHash)).timestamp)
+    const timestamp =
+      cachedBlockTS == null || cachedBlockTS === 0
+        ? timestampMS((await this.getSlimBlockByHash(receipt.blockHash ?? '')).timestamp)
+        : cachedBlockTS
     this.blockTimestampCache.set(receipt.blockHash, timestamp)
     receipt.timestamp = timestamp
     if (receipt && decode) {
@@ -385,6 +389,7 @@ export class EvmDecoder {
 
   private async processRawBlock(rawBlock: RawBlockResponse | RawBlock) {
     const block = formatBlock(rawBlock)
+    const timestamp = timestampMS(block.timestamp)
     let receipts: RawTransactionReceipt[] = []
     let individualReceipts = this.config.eth.client.individualReceipts
     if (!individualReceipts) {
@@ -405,7 +410,9 @@ export class EvmDecoder {
         )
         individualReceipts = true
       }
+      receipts = receipts.map(r => ({ ...r, timestamp }))
     }
+    rawBlock.transactions = rawBlock.transactions.map(({ timestamp, ...t }) => ({ ...t, timestamp }))
 
     const transactions =
       rawBlock.transactions.length === 0
@@ -438,6 +445,14 @@ export class EvmDecoder {
   private async processRawBlockWithTransactions(rawFullBlock: RawFullBlock) {
     const { block: rawBlock, transactions: rawTransactions } = rawFullBlock
     const block = formatBlock(rawBlock)
+    for (let i = 0; i < rawTransactions.length; i++) {
+      const timestamp = timestampMS(block.timestamp)
+      if (block.hash != null) {
+        this.blockTimestampCache.set(block.hash, timestamp)
+      }
+      rawTransactions[i].transaction = { ...rawTransactions[i].transaction, timestamp }
+      rawTransactions[i].receipt = { ...rawTransactions[i].receipt, timestamp }
+    }
     const transactions =
       rawTransactions.length === 0
         ? []
@@ -469,8 +484,13 @@ export class EvmDecoder {
     }
 
     const cachedBlockTS = this.blockTimestampCache.get(rawTx.blockHash ?? '')
-    const timestamp = cachedBlockTS ?? timestampMS((await this.getSlimBlockByHash(rawTx.blockHash ?? '')).timestamp)
-    this.blockTimestampCache.set(rawTx.blockHash ?? '', timestamp)
+    const timestamp =
+      cachedBlockTS == null || cachedBlockTS === 0
+        ? timestampMS((await this.getSlimBlockByHash(rawTx.blockHash ?? '', false)).timestamp)
+        : cachedBlockTS
+    if (rawTx.blockHash != null) {
+      this.blockTimestampCache.set(rawTx.blockHash, timestamp)
+    }
     rawTx.timestamp = timestamp
 
     const [receipt, toInfo, fromInfo] = await Promise.all([
