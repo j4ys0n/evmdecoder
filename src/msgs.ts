@@ -152,6 +152,7 @@ export interface FormattedTransaction extends BaseFormattedTransaction {
   contractAddressInfo?: AddressInfo | ContractInfo
   /** Decrypted information from private transactions */
   privatePayload?: PrivateTransactionPayload
+  timestamp?: number
 }
 
 export interface AddressInfo {

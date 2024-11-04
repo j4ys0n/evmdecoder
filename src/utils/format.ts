@@ -138,7 +138,8 @@ export function formatTransaction(
     toInfo,
     contractAddressInfo,
     call,
-    privatePayload
+    privatePayload,
+    timestamp: rawTx.timestamp
   }
 }
 

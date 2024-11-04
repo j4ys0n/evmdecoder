@@ -267,6 +267,7 @@ export class EvmDecoder {
       .catch(e =>
         Promise.reject(new Error(`Failed to request batch of blocks ${blockNumbers.join(', ')}: ${e}`))
       )
+    
     for (let i = 0; i < blocks.length; i++) {
       const transactions = blocks[i].transactions.map(t => ({ ...t, timestamp: timestampMS(blocks[i].timestamp) }))
       blocks[i].transactions = transactions
@@ -373,7 +374,7 @@ export class EvmDecoder {
     receipt.timestamp = timestamp
     if (receipt && decode) {
       return Promise.all(
-        receipt?.logs?.map((l: RawLogResponse) => this.processTransactionLog(l)) ?? []
+        receipt?.logs?.map((l: RawLogResponse) => this.processTransactionLog(l, receipt.timestamp)) ?? []
       )
     }
     if (receipt) {
@@ -422,6 +423,7 @@ export class EvmDecoder {
               )
             )
           )
+          
     return {
       block,
       transactions
@@ -466,6 +468,11 @@ export class EvmDecoder {
       throw new RuntimeError(`Received raw transaction`)
     }
 
+    const cachedBlockTS = this.blockTimestampCache.get(rawTx.blockHash ?? '')
+    const timestamp = cachedBlockTS ?? timestampMS((await this.getSlimBlockByHash(rawTx.blockHash ?? '')).timestamp)
+    this.blockTimestampCache.set(rawTx.blockHash ?? '', timestamp)
+    rawTx.timestamp = timestamp
+
     const [receipt, toInfo, fromInfo] = await Promise.all([
       fetchReceipts ? this.ethClient.request(getTransactionReceipt(rawTx.hash)) : rawReceipt,
       rawTx.to != null
@@ -481,6 +488,9 @@ export class EvmDecoder {
           })
         : undefined
     ])
+    if (receipt != null) {
+      receipt.timestamp = timestamp
+    }
 
     const contractAddressInfo: ContractInfo | undefined =
       receipt?.contractAddress != null
@@ -509,7 +519,7 @@ export class EvmDecoder {
         ? await Promise.all(
             //@ts-ignore
             this.getLogs(receipt).map((l: RawLogResponse | RawParityLogResponse) =>
-              this.processTransactionLog(l)
+              this.processTransactionLog(l, receipt?.timestamp!)
             ) ?? []
           )
         : []
@@ -557,7 +567,8 @@ export class EvmDecoder {
   }
 
   public async processTransactionLog(
-    evt: RawLogResponse | FormattedLogEvent
+    evt: RawLogResponse | FormattedLogEvent,
+    timestamp: number
   ): Promise<FormattedLogEvent> {
     const { eventContractInfo, decodedEventData } = await this.decodeLogEvent(evt)
     if (evt.address != null && decodedEventData != null && eventContractInfo != null) {
