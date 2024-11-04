@@ -539,7 +539,7 @@ export class EvmDecoder {
         ? await Promise.all(
             //@ts-ignore
             this.getLogs(receipt).map((l: RawLogResponse | RawParityLogResponse) =>
-              this.processTransactionLog(l, receipt?.timestamp!)
+              this.processTransactionLog(l, timestamp)
             ) ?? []
           )
         : []
@@ -591,6 +591,7 @@ export class EvmDecoder {
     timestamp: number
   ): Promise<FormattedLogEvent> {
     const { eventContractInfo, decodedEventData } = await this.decodeLogEvent(evt)
+    evt.timestamp = timestamp
     if (evt.address != null && decodedEventData != null && eventContractInfo != null) {
       try {
         const decodedExtra = await this.classification.getExtraData(
