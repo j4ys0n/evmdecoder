@@ -174,7 +174,8 @@ export function formatLogEvent(
     data: evt.data,
     topics: evt.topics,
     addressInfo,
-    event
+    event,
+    timestamp: evt.timestamp
   }
 }
 
@@ -193,4 +194,8 @@ export function formatTransactionTrace(
     value: trace.value != null ? parseBigInt(trace.value) : 0,
     type: trace.type
   }
+}
+
+export function timestampMS(ts: string | number): number {
+  return typeof ts === 'string' ? parseInt(ts, 10) * 1000 : ts * 1000
 }

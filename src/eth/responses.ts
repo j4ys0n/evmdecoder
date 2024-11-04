@@ -74,10 +74,10 @@ export interface RawTransactionResponse {
   r: string
   s: string
   yParity?: string
+  timestamp?: number
 }
 
-export interface RawTransaction extends RawTransactionResponse {
-}
+export interface RawTransaction extends RawTransactionResponse {}
 
 export interface RawTransactionReceipt {
   transactionHash: string
@@ -93,6 +93,7 @@ export interface RawTransactionReceipt {
   logs?: RawLogResponse[]
   status?: string
   type: string
+  timestamp: number
 }
 
 export interface RawLogResponse {
@@ -106,6 +107,7 @@ export interface RawLogResponse {
   address: string
   data: string
   topics: string[]
+  timestamp: number
 }
 
 export interface RawLogEvent extends RawLogResponse {
@@ -129,6 +131,7 @@ export interface RawParityLogResponse {
   data: string
   topics: string[]
   type: string
+  timestamp: number
 }
 
 export interface RawParityTransactionReceipt extends RawTransactionReceipt {

@@ -223,6 +223,7 @@ export interface FormattedLogEvent {
   addressInfo?: AddressInfo | ContractInfo
   /** Decoded event name, signature and parameters */
   event?: EventData
+  timestamp: number
 }
 
 export interface EventData {

@@ -25,7 +25,7 @@ import { DecodedTransactionTrace, DecodedTransactionTraceItem, FormattedBlock, F
 import { bigIntToNumber } from './utils/bn'
 import { Classification, ClassificationResources } from './utils/classification'
 import { RuntimeError } from './utils/error'
-import { formatBlock, formatLogEvent, formatPendingTransaction, formatTransaction, formatTransactionTrace, parseBlockTime } from './utils/format'
+import { formatBlock, formatLogEvent, formatPendingTransaction, formatTransaction, formatTransactionTrace, parseBlockTime, timestampMS } from './utils/format'
 import { chunkArray, deepMerge } from './utils/obj'
 
 const { info, warn, error } = createModuleDebug('evmdecoder:main')
@@ -91,6 +91,7 @@ export class EvmDecoder {
   private config: Config
   private abortHandle: AbortHandle
   private abiRepo: AbiRepository
+  private blockTimestampCache: LRUCache<string, number>
   private contractInfoCache: LRUCache<string, Promise<ContractInfo>>
   private resources: ManagedResource[] = []
   private waitAfterFailure: WaitTime
@@ -106,6 +107,9 @@ export class EvmDecoder {
     this.abiRepo = new AbiRepository(this.config.abi, this.config.logging)
     this.addResource(this.abiRepo)
 
+    this.blockTimestampCache = new LRUCache<string, number>({
+      maxSize: 2_500
+    })
     this.contractInfoCache = new LRUCache<string, Promise<ContractInfo>>({
       maxSize: this.config.contractInfo.maxCacheEntries
     })
@@ -213,6 +217,9 @@ export class EvmDecoder {
   public async getFullBlock<T extends boolean>(blockNumber: number, decode?: T): Promise<T extends true ? FullBlockResponse : RawFullBlock>
   public async getFullBlock(blockNumber: number, decode: boolean = true) {
     const block = await this.ethClient.request(getBlock(blockNumber, true))
+    block.transactions = block.transactions.map(t =>
+      typeof t === 'string' ? t : ({ ...t, timestamp: timestampMS(block.timestamp)})
+    )
     if (decode) {
       return this.processBlock(block)
     } else {
@@ -260,6 +267,10 @@ export class EvmDecoder {
       .catch(e =>
         Promise.reject(new Error(`Failed to request batch of blocks ${blockNumbers.join(', ')}: ${e}`))
       )
+    for (let i = 0; i < blocks.length; i++) {
+      const transactions = blocks[i].transactions.map(t => ({ ...t, timestamp: timestampMS(blocks[i].timestamp) }))
+      blocks[i].transactions = transactions
+    }
     if (decode) {
       return Promise.all(blocks.map(b => this.processBlock(b)))
     } else {
@@ -284,7 +295,7 @@ export class EvmDecoder {
   public async getFullBlocks<T extends boolean>(blockNumbers: number[], decode?: T): Promise<T extends true ? Array<FullBlockResponse> : Array<RawFullBlock>>
   public async getFullBlocks(blockNumbers: number[], decode: boolean = true) {
     if (decode) {
-      const blocks = this.getBlocks(blockNumbers, true)
+      const blocks = await this.getBlocks(blockNumbers, true)
       return blocks
     } else {
       const blocks = await this.getBlocks(blockNumbers, false)
@@ -342,6 +353,12 @@ export class EvmDecoder {
 
   public async getTransaction(hash: string, decode: boolean = true) {
     const transaction = await this.ethClient.request(getTransaction(hash))
+    if (transaction.blockHash != null) {
+      const cachedBlockTS = this.blockTimestampCache.get(transaction.blockHash)
+      const timestamp = cachedBlockTS ?? timestampMS((await this.getSlimBlockByHash(transaction.blockHash)).timestamp)
+      this.blockTimestampCache.set(transaction.blockHash, timestamp)
+      transaction.timestamp = timestamp
+    }
     if (decode) {
       return this.processTransaction(transaction, true)
     }
@@ -350,6 +367,10 @@ export class EvmDecoder {
 
   public async getTransactionReceipt(hash: string, decode: boolean = true) {
     const receipt = await this.ethClient.request(getTransactionReceipt(hash))
+    const cachedBlockTS = this.blockTimestampCache.get(receipt.blockHash)
+    const timestamp = cachedBlockTS ?? timestampMS((await this.getSlimBlockByHash(receipt.blockHash)).timestamp)
+    this.blockTimestampCache.set(receipt.blockHash, timestamp)
+    receipt.timestamp = timestamp
     if (receipt && decode) {
       return Promise.all(
         receipt?.logs?.map((l: RawLogResponse) => this.processTransactionLog(l)) ?? []
