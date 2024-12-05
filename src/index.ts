@@ -42,7 +42,8 @@ const DEFAULT_CONFIG: DeepPartial<Config> = {
       maxBatchSize: 100,
       maxBatchTime: 0,
       individualReceipts: true,
-      maxRetryTime: 10_000
+      maxRetryTime: 10_000,
+      tracerTimeout: 100
     }
   },
   abi: {
@@ -608,7 +609,7 @@ export class EvmDecoder {
 
   public async getInternalTransaction<T extends boolean>(hash: string, decode?: T): Promise<T extends true ? DecodedTransactionTrace : FormattedTransactionTrace>
   public async getInternalTransaction(hash: string, decode: boolean = true) {
-    const trace = await this.ethClient.request(traceTransaction(hash, { tracer: 'callTracer' }))
+    const trace = await this.ethClient.request(traceTransaction(hash, { tracer: 'callTracer', timeout: `${this.config.eth.client.tracerTimeout}s` }))
     const formatted = formatTransactionTrace(trace, hash)
     if (decode) {
       return this.decodeTransactionTrace<DecodedTransactionTrace>(formatted)
@@ -619,7 +620,7 @@ export class EvmDecoder {
 
   public async getInternalTransactionsByBlock<T extends boolean>(blockNumber: number, decode?: T): Promise<T extends true ? Array<DecodedTransactionTrace> : Array<FormattedTransactionTrace>>
   public async getInternalTransactionsByBlock(blockNumber: number, decode: boolean = true) {
-    const traces = await this.ethClient.request(traceBlockByNumber(blockNumber, { tracer: 'callTracer' }))
+    const traces = await this.ethClient.request(traceBlockByNumber(blockNumber, { tracer: 'callTracer', timeout: `${this.config.eth.client.tracerTimeout}s` }))
     const formattedTraces = traces.map(({ txHash, result }) => formatTransactionTrace(result, txHash))
     if (decode) {
       const decoded: DecodedTransactionTrace[] = []

@@ -90,6 +90,8 @@ export interface EthereumClientConfigSchema {
   individualReceipts: boolean
   //** Maximum time to wait before resubmitting a batch of JSON RPC requests, exponential backoff */
   maxRetryTime: number
+  /** Timeout for callTracer rpc call, in seconds (internal transactions / traces) */
+  tracerTimeout: number
 }
 
 export type Duration = number
