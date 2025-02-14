@@ -36,7 +36,9 @@ const DEFAULT_CONFIG: DeepPartial<Config> = {
       timeout: 60_000,
       validateCertificate: false,
       requestKeepAlive: true,
-      maxSockets: 256
+      maxSockets: 256,
+      maxRetries: 10,
+      maxBatchSplits: 15
     },
     client: {
       maxBatchSize: 100,
@@ -58,7 +60,7 @@ const DEFAULT_CONFIG: DeepPartial<Config> = {
   contractInfo: {
     maxCacheEntries: 25_000
   },
-  logging: {},
+  logging: {}
 }
 
 export interface RawFullBlock {
@@ -117,11 +119,15 @@ export class EvmDecoder {
     const transport = new HttpTransport(this.config.eth.url, this.config.eth.http)
     this.ethClient =
       this.config.eth.client.maxBatchSize > 1
-        ? new BatchedEthereumClient(transport, {
-            maxBatchSize: this.config.eth.client.maxBatchSize,
-            maxBatchTime: this.config.eth.client.maxBatchTime
-          })
-        : new EthereumClient(transport)
+        ? new BatchedEthereumClient(
+            transport,
+            {
+              maxBatchSize: this.config.eth.client.maxBatchSize,
+              maxBatchTime: this.config.eth.client.maxBatchTime
+            },
+            this.config.eth.http
+          )
+        : new EthereumClient(transport, this.config.eth.http)
     const classificationResources: ClassificationResources = {
       ethClient: this.ethClient,
       abiRepo: this.abiRepo,
@@ -396,7 +402,7 @@ export class EvmDecoder {
     if (!individualReceipts) {
       try {
         receipts = await retry(() => this.ethClient.request(getBlockReceipts(block.number!)), {
-          attempts: 3,
+          attempts: this.config.eth.http.maxRetries,
           waitBetween: this.waitAfterFailure,
           taskName: `getting receipts for block ${bigIntToNumber(block.number!)}`,
           abortHandle: this.abortHandle,
