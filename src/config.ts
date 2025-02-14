@@ -78,6 +78,10 @@ export interface HttpTransportConfig {
   requestKeepAlive?: boolean
   /** Maximum number of sockets HEC will use (per host) */
   maxSockets?: number
+  /** Maximum number of retries when a request fails */
+  maxRetries: number
+  /** Maximum number of times a batch request will be split if it fails (Error: batch request too large) */
+  maxBatchSplits: number
 }
 
 /** Ethereum client settings - configure batching multiple JSON RPC method calls into single HTTP requests */

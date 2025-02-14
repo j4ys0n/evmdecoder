@@ -6,6 +6,7 @@ import { EthRequest } from './requests'
 import { EthereumTransport } from './transport'
 import { RuntimeError } from '../utils/error'
 import { chunkArray } from '../utils/obj'
+import { HttpTransportConfig } from '../config'
 
 const { info, debug, warn, error } = createModuleDebug('eth:client')
 
@@ -17,12 +18,13 @@ interface BatchReq<P extends any[] = any[], R = any> {
 async function batchRequestWithFailover(
   reqs: JsonRpcRequest[],
   transport: EthereumTransport,
-  splits: number = 1 // 1 is no split
+  splits: number = 1, // 1 is no split
+  maxSplits: number = 10
 ): Promise<JsonRpcResponse[]> {
   if (splits < 1) {
     throw new RuntimeError(`batch request splits can't be less than 1`)
   }
-  const maxSplits = 10
+  // const maxSplits = 10
   if (splits <= maxSplits) {
     if (splits > 1) {
       warn('Splitting batch into %d chunks', splits)
@@ -152,6 +154,7 @@ export async function executeBatchRequest(
   batch: BatchReq[],
   transport: EthereumTransport,
   abortHandle: AbortHandle,
+  httpConfig: HttpTransportConfig,
   waitAfterFailure = linearBackoff({ min: 0, step: 2500, max: 120_000 }),
   attempt = 1
 ) {
@@ -174,18 +177,21 @@ export async function executeBatchRequest(
         reqOrder.push({ hash, batchItem })
       }
       
-      const results: JsonRpcResponse[] = await retry(() => batchRequestWithFailover(Array.from(reqs.values()), transport), {
-        attempts: 10,
-        waitBetween: waitAfterFailure,
-        taskName: `eth api batch request`,
-        abortHandle: abortHandle,
-        warnOnError: true,
-        onError: e => {
-          info('client batch request error: %s', e.toString())
-          debug('requests: %s', Array.from(reqs.values().toString()))
-        },
-        onRetry: attempt => warn('Retrying eth api batch request (attempt %d)', attempt)
-      })
+      const results: JsonRpcResponse[] = await retry(
+        () => batchRequestWithFailover(Array.from(reqs.values()), transport, 1, httpConfig.maxBatchSplits),
+        {
+          attempts: httpConfig.maxRetries,
+          waitBetween: waitAfterFailure,
+          taskName: `eth api batch request`,
+          abortHandle: abortHandle,
+          warnOnError: true,
+          onError: e => {
+            info('client batch request error: %s', e.toString())
+            debug('requests: %s', Array.from(reqs.values().toString()))
+          },
+          onRetry: attmpt => warn('Retrying eth api batch request (attempt %d)', attmpt)
+        }
+      )
       await handleRpcResults(
         results,
         reqs,
@@ -204,7 +210,7 @@ export async function executeBatchRequest(
 
 export class EthereumClient {
   public abortHandle = new AbortHandle()
-  constructor(public readonly transport: EthereumTransport) {}
+  constructor(public readonly transport: EthereumTransport, public readonly httpConfig: HttpTransportConfig) {}
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async request<P extends any[], R>(req: EthRequest<P, R>, options?: { immediate?: boolean, ignoreErrors?: boolean }): Promise<R> {
@@ -250,7 +256,7 @@ export class EthereumClient {
       )
     }
     await sleep(0)
-    await executeBatchRequest(batchReqs, this.transport, this.abortHandle)
+    await executeBatchRequest(batchReqs, this.transport, this.abortHandle, this.httpConfig)
     return await Promise.all(promises)
   }
 }
@@ -264,8 +270,8 @@ export class BatchedEthereumClient extends EthereumClient {
   private config: BatchedEthereumClientConfig
   private queue: BatchReq<any[], any>[] = []
   private flushTimer: NodeJS.Timer | null = null
-  constructor(transport: EthereumTransport, config: BatchedEthereumClientConfig) {
-    super(transport)
+  constructor(transport: EthereumTransport, config: BatchedEthereumClientConfig, httpConfig: HttpTransportConfig) {
+    super(transport, httpConfig)
     this.config = config
   }
 
@@ -305,7 +311,7 @@ export class BatchedEthereumClient extends EthereumClient {
     }
     const batch = this.queue
     this.queue = []
-    return await executeBatchRequest(batch, this.transport, this.abortHandle)
+    return await executeBatchRequest(batch, this.transport, this.abortHandle, this.httpConfig)
   }
 
   private scheduleFlush() {
