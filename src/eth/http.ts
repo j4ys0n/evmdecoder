@@ -38,7 +38,13 @@ export class HttpTransport implements EthereumTransport {
     this.config = { ...CONFIG_DEFAULTS, ...config }
     const baseAgentOptions: HttpOptions = {
       keepAlive: true,
-      maxSockets: 256
+      maxSockets: 256,
+      // Propagate the configured request timeout to agentkeepalive's active-socket
+      // inactivity timeout. Without this, agentkeepalive falls back to its default of
+      // max(freeSocketTimeout * 2, 8000) = 8000ms, which fires long before node-fetch's
+      // own `timeout` and destroys the socket (ERR_SOCKET_TIMEOUT) for slow responses
+      // such as large blocks with hundreds of transactions.
+      timeout: this.config.timeout
     }
     this.httpAgent = isHttps(url)
       ? new HttpsAgent({
