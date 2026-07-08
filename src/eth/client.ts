@@ -24,6 +24,9 @@ async function batchRequestWithFailover(
   if (splits < 1) {
     throw new RuntimeError(`batch request splits can't be less than 1`)
   }
+  if (reqs.length === 0) {
+    return []
+  }
   // const maxSplits = 10
   if (splits <= maxSplits) {
     if (splits > 1) {
@@ -155,7 +158,9 @@ export async function executeBatchRequest(
   transport: EthereumTransport,
   abortHandle: AbortHandle,
   httpConfig: HttpTransportConfig,
-  waitAfterFailure = linearBackoff({ min: 0, step: 2500, max: 120_000 }),
+  // min > 0: an instant retry lands on the same failing endpoint/connection state
+  // that just timed out and only amplifies the outage.
+  waitAfterFailure = linearBackoff({ min: 500, step: 2500, max: 120_000 }),
   attempt = 1
 ) {
   const maxAttempts = 5

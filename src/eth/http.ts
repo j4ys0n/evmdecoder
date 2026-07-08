@@ -20,7 +20,8 @@ const CONFIG_DEFAULTS = {
   timeout: 60_000,
   validateCertificate: true,
   requestKeepAlive: true,
-  maxSockets: 256
+  maxSockets: 256,
+  freeSocketTimeout: 300_000
 }
 
 const initialCounters = {
@@ -38,13 +39,17 @@ export class HttpTransport implements EthereumTransport {
     this.config = { ...CONFIG_DEFAULTS, ...config }
     const baseAgentOptions: HttpOptions = {
       keepAlive: true,
-      maxSockets: 256,
+      maxSockets: this.config.maxSockets,
       // Propagate the configured request timeout to agentkeepalive's active-socket
       // inactivity timeout. Without this, agentkeepalive falls back to its default of
       // max(freeSocketTimeout * 2, 8000) = 8000ms, which fires long before node-fetch's
       // own `timeout` and destroys the socket (ERR_SOCKET_TIMEOUT) for slow responses
       // such as large blocks with hundreds of transactions.
-      timeout: this.config.timeout
+      timeout: this.config.timeout,
+      // Keep idle sockets alive long enough to be reused by the next burst of
+      // requests. agentkeepalive's 4s default destroys the connection after any
+      // short pause, forcing a fresh TCP connect per burst.
+      freeSocketTimeout: this.config.freeSocketTimeout
     }
     this.httpAgent = isHttps(url)
       ? new HttpsAgent({

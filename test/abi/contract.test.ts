@@ -1,8 +1,10 @@
+import { LRUCache } from '@splunkdlt/cache'
 import { join } from 'path'
-import { computeContractFingerprint, extractFunctionsAndEvents } from '../../src/abi/contract'
+import { computeContractFingerprint, ContractInfo, extractFunctionsAndEvents } from '../../src/abi/contract'
 import { AbiRepository } from '../../src/abi/repo'
 import { readFile } from 'fs-extra'
 import { Classification } from '../../src/utils/classification'
+import { HttpTransportConfig } from '../../src/config'
 import { EthereumClient } from '../../src/eth/client'
 import { HttpTransport } from '../../src/eth/http'
 
@@ -14,7 +16,7 @@ test('extractFunctionsAndEvents', async () => {
     requireContractMatch: true,
     reconcileStructShapeFromTuples: false
   }
-  const abis = new AbiRepository(config)
+  const abis = new AbiRepository(config, {})
   await abis.loadAbiFile(join(__dirname, '../abis/BCB.json'), config)
   const fne = extractFunctionsAndEvents(
     await readFile(join(__dirname, '../fixtures/contract1.txt'), { encoding: 'utf-8' }),
@@ -65,7 +67,7 @@ test('extractFunctionsAndEvents BAYC', async () => {
     reconcileStructShapeFromTuples: false
   }
 
-  const abis = new AbiRepository(config)
+  const abis = new AbiRepository(config, {})
   await abis.loadAbiFile(join(__dirname, '../abis/ERC721.json'), config)
   const fne = extractFunctionsAndEvents(
     await readFile(join(__dirname, '../fixtures/bayc.txt'), { encoding: 'utf-8' }),
@@ -114,21 +116,29 @@ test('BAYC is classified as NFT', async () => {
     reconcileStructShapeFromTuples: false
   }
 
-  const abis = new AbiRepository(config)
+  const abis = new AbiRepository(config, {})
   await abis.loadAbiFile(join(__dirname, '../abis/ERC721.json'), config)
 
-  const transport = new HttpTransport('http://localhost:8545', {
+  const httpConfig: HttpTransportConfig = {
     timeout: 60_000,
     validateCertificate: false,
     requestKeepAlive: true,
-    maxSockets: 256
-  })
+    maxSockets: 256,
+    maxRetries: 10,
+    maxBatchSplits: 15
+  }
+  const transport = new HttpTransport('http://localhost:8545', httpConfig)
+  const ethClient = new EthereumClient(transport, httpConfig)
+  const contractInfoCache = new LRUCache<string, Promise<ContractInfo>>({ maxSize: 100 })
 
-  const classification = new Classification(new EthereumClient(transport))
+  const classification = new Classification({ ethClient, abiRepo: abis, contractInfoCache }, {})
   const baycCode = await readFile(join(__dirname, '../fixtures/bayc.txt'), { encoding: 'utf-8' })
 
   // console.log(classification.implementsErc721(baycCode))
-  const c = await classification.classifyContract('0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D', baycCode)
+  const c = await classification.classifyContract({
+    address: '0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D',
+    code: baycCode
+  })
   expect(c).toMatchInlineSnapshot(`
   Object {
     "baseUri": true,

@@ -1,4 +1,4 @@
-import { deepMerge, removeEmptyValues, prefixKeys } from '../../src/utils/obj'
+import { chunkArray, deepMerge, removeEmptyValues, prefixKeys } from '../../src/utils/obj'
 
 test('deepMerge', () => {
   expect(deepMerge({ a: 'foo' }, { a: 'bar' })).toMatchInlineSnapshot(`
@@ -52,6 +52,32 @@ test('removeEmptyValues', () => {
           "yo": "yo",
         }
     `)
+})
+
+test('chunkArray', () => {
+  expect(chunkArray([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]])
+  expect(chunkArray([1, 2, 3], 3)).toEqual([[1, 2, 3]])
+  expect(chunkArray([1, 2, 3], 10)).toEqual([[1, 2, 3]])
+  expect(chunkArray([], 5)).toEqual([])
+})
+
+test('chunkArray does not mutate its input', () => {
+  // Regression test: chunkArray used to splice() items out of the caller's array,
+  // so retrying/splitting a batch with the same array sent zero requests and
+  // resolved with an empty (fake-success) response set.
+  const input = [1, 2, 3, 4, 5]
+  const first = chunkArray(input, 5)
+  expect(input).toEqual([1, 2, 3, 4, 5])
+  expect(first).toEqual([[1, 2, 3, 4, 5]])
+  // simulate the batch-split retry: same array, more splits
+  const second = chunkArray(input, 3)
+  expect(second).toEqual([[1, 2, 3], [4, 5]])
+  expect(input).toEqual([1, 2, 3, 4, 5])
+})
+
+test('chunkArray clamps invalid chunk sizes', () => {
+  expect(chunkArray([1, 2], 0)).toEqual([[1], [2]])
+  expect(chunkArray([1, 2], NaN)).toEqual([[1], [2]])
 })
 
 test('prefixKeys', () => {

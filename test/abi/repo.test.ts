@@ -21,7 +21,7 @@ test('AbiRepository#decodeFunctionCall', async () => {
     searchRecursive: true,
     requireContractMatch: true,
     reconcileStructShapeFromTuples: false
-  })
+  }, {})
 
   await abiRepo.initialize()
 
@@ -129,7 +129,7 @@ test('AbiRepository#decodeLogEvent', async () => {
     searchRecursive: true,
     requireContractMatch: true,
     reconcileStructShapeFromTuples: false
-  })
+  }, {})
   await abiRepo.initialize()
 
   //console.log((abiRepo as any).signatures);
@@ -137,11 +137,6 @@ test('AbiRepository#decodeLogEvent', async () => {
   expect(
     abiRepo.decodeLogEvent(
       {
-        logIndex: '0x1',
-        blockNumber: '0x1bf',
-        blockHash: '0x16545b7f5052ebde2812b8ac8ad5d64da83e60bfe32c22f4e15a76f45b3acd47',
-        transactionHash: '0xb0d235d01b32b0f39e547117b5ec4f553dba0976e0b41ef58da1832c86de73f6',
-        transactionIndex: '0x0',
         address: '0xa0EB7CA45F646EA73F3d4F41eC197900A00CcdBf',
         data: '0x0000000000000000000000000000000000000000000000000429d069189e0000',
         topics: [
@@ -188,7 +183,7 @@ test('decode anonymous with collision', async () => {
     fingerprintContracts: false,
     requireContractMatch: true,
     reconcileStructShapeFromTuples: false
-  })
+  }, {})
   await abiRepo.initialize()
 
   expect(

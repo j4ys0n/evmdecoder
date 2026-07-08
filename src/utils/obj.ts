@@ -34,12 +34,12 @@ export function isEmpty(obj: object): boolean {
   return obj == null || Object.values(obj).filter(v => v != null).length === 0
 }
 
+/** Splits `data` into chunks of at most `chunkSize` items. Does not mutate the input array. */
 export function chunkArray<T>(data: T[], chunkSize: number): T[][] {
-  const chunkCount = Math.ceil(data.length / chunkSize)
-  const chunks: any[][] = []
-  for (let i = 0; i < chunkCount; i++) {
-    const chunk = data.splice(0, chunkSize)
-    chunks.push(chunk)
+  const size = Number.isFinite(chunkSize) && chunkSize >= 1 ? Math.floor(chunkSize) : 1
+  const chunks: T[][] = []
+  for (let i = 0; i < data.length; i += size) {
+    chunks.push(data.slice(i, i + size))
   }
   return chunks
 }
