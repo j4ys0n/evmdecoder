@@ -78,6 +78,15 @@ export interface HttpTransportConfig {
   requestKeepAlive?: boolean
   /** Maximum number of sockets HEC will use (per host) */
   maxSockets?: number
+  /**
+   * How long (in milliseconds) idle keep-alive sockets are kept open before being
+   * destroyed. Determines how long the connection to the JSON RPC node survives
+   * between request bursts. agentkeepalive's own default is 4 seconds, which forces
+   * a fresh TCP connection after any short pause — that connection churn adds
+   * latency and can trip stateful middleboxes (NAT, firewalls, IDS) between the
+   * client and the node.
+   */
+  freeSocketTimeout?: Duration
   /** Maximum number of retries when a request fails */
   maxRetries: number
   /** Maximum number of times a batch request will be split if it fails (Error: batch request too large) */

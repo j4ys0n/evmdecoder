@@ -37,6 +37,7 @@ const DEFAULT_CONFIG: DeepPartial<Config> = {
       validateCertificate: false,
       requestKeepAlive: true,
       maxSockets: 256,
+      freeSocketTimeout: 300_000,
       maxRetries: 10,
       maxBatchSplits: 15
     },
