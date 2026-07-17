@@ -41,7 +41,9 @@ where
 }
 
 fn to_js_result<T: Serialize>(result: &JsResult<T>) -> JsValue {
-    JsValue::from_serde(result).expect("Failed to serialize JsResult")
+    result
+        .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
+        .expect("Failed to serialize JsResult")
 }
 
 #[derive(Serialize, Debug)]
@@ -115,6 +117,11 @@ pub fn get_data_size(type_str: String) -> JsValue {
         },
         Err(err) => JsResult::Err(err),
     })
+}
+
+#[wasm_bindgen]
+pub fn wasm_memory() -> JsValue {
+    wasm_bindgen::memory()
 }
 
 #[wasm_bindgen]

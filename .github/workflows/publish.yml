@@ -1,0 +1,62 @@
+name: Publish to npm
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'j4ys0n/evmdecoder'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the merged revision
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Set up npm and Yarn
+        run: npm install --global npm@11.5.1 yarn@1.22.22
+
+      - name: Install Rust dependencies
+        run: |
+          rustup show active-toolchain
+          cargo install wasm-pack --version 0.13.1 --locked
+
+      - name: Install package dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build
+        run: yarn build
+
+      - name: Test
+        run: yarn test --runInBand
+
+      - name: Require an unpublished package version
+        shell: bash
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "::error::${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Bump package.json before merging."
+            exit 1
+          fi
+
+      - name: Publish
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
