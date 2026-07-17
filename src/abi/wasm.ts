@@ -6,9 +6,9 @@ import {
   parse_event_signature,
   parse_function_signature,
   sha3 as wasm_sha3,
-  to_checksum_address
-} from '../../wasm/ethabi/pkg'
-import { memory } from '../../wasm/ethabi/pkg/ethlogger_ethabi_bg'
+  to_checksum_address,
+  wasm_memory
+} from '../../wasm-pkg'
 import { RuntimeError } from '../utils/error'
 import { AbiType } from './datatypes'
 import { AbiItem } from './item'
@@ -64,5 +64,5 @@ export function toChecksumAddress(address: string): string {
 }
 
 export function getWasmMemorySize(): number {
-  return memory.buffer.byteLength
+  return (wasm_memory() as WebAssembly.Memory).buffer.byteLength
 }

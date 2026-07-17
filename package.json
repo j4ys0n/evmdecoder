@@ -1,12 +1,15 @@
 {
   "name": "evmdecoder",
   "description": "Library to decode EVM contract data.",
-  "version": "0.0.71",
+  "version": "0.0.72",
   "contributors": [
     "Splunk",
     "Jayson Jacobs"
   ],
-  "repository": "j4ys0n/evmdecoder",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/j4ys0n/evmdecoder.git"
+  },
   "bugs": "https://github.com/j4ys0n/evmdecoder/issues",
   "homepage": "https://github.com/j4ys0n/evmdecoder",
   "publishConfig": {
@@ -52,7 +55,7 @@
     "/lib",
     "/data/*.abisigs.gz",
     "/data/chains.json",
-    "/wasm"
+    "wasm-pkg"
   ],
   "keywords": [
     "ethereum",
@@ -71,8 +74,8 @@
     "lint": "eslint . --ext .ts --config .eslintrc",
     "build": "yarn build:wasm && rm -rf lib && tsc -b && yarn build:signatures",
     "build:ts": "tsc -b",
-    "build:wasm": "wasm-pack build --target nodejs --release wasm/ethabi && cp -f wasm/ethabi/alt-package.json wasm/ethabi/pkg/package.json",
-    "build:signatures": "ts-node scripts/buildsigs.ts",
+    "build:wasm": "rm -rf wasm-pkg wasm/pkg wasm/ethabi/pkg && wasm-pack build --out-dir ../../wasm-pkg --target nodejs --release wasm/ethabi && cp -f wasm/ethabi/alt-package.json wasm-pkg/package.json && cp -f wasm/ethabi/.npmignore wasm-pkg/.npmignore",
+    "build:signatures": "node --no-opt -r ts-node/register scripts/buildsigs.ts",
     "prepack": "yarn build",
     "format": "git ls-files | grep -E \"\\.(jsx?|tsx?|css|md|ya?ml|json)$\" | xargs prettier --write",
     "test": "jest --config jest.config.json"

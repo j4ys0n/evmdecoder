@@ -3,9 +3,8 @@
   "collaborators": ["Siegfried Puchbauer"],
   "version": "1.0.0",
   "files": [
-    "ethlogger_ethabi_bg.js",
-    "ethlogger_ethabi_bg.d.ts",
     "ethlogger_ethabi_bg.wasm",
+    "ethlogger_ethabi_bg.wasm.d.ts",
     "ethlogger_ethabi.js",
     "ethlogger_ethabi.d.ts"
   ],
